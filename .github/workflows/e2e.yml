@@ -30,14 +30,14 @@ jobs:
         SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
         FINGERPRINT_STRICT: 'false'
     - name: Upload Cypress artifacts
-        if: always()
+        if:always()
         uses: actions/upload-artifact@v4
         with:
-        name: cypress-artifacts
+          name: cypress-artifacts
         path: |
-        cypress/reports/**
-        cypress/screenshots/**
-        cypress/videos/**
+          cypress/reports/**
+          cypress/screenshots/**
+          cypress/videos/**
         retention-days: 14
     # make the ZIP even if tests fail
       - name: Create ZIP package
