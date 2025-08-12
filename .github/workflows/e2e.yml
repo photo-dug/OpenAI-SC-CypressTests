@@ -11,17 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-        
+        uses: actions/checkout@v4  
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-
       - name: Install deps
         run: npm ci
-
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
@@ -32,7 +29,6 @@ jobs:
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           FINGERPRINT_STRICT: 'false'
-
       - name: Upload Cypress artifacts
         if: always()
         uses: actions/upload-artifact@v4
