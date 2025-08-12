@@ -45,15 +45,15 @@ jobs:
           retention-days: 14
 
      # make the ZIP even if tests fail
-    - name: Create ZIP package
-    if: always()
-    run: npm run zip
+      - name: Create ZIP package
+      if: always()
+      run: npm run zip
 
     # only upload if the ZIP exists
-    - name: Upload ZIP
+      - name: Upload ZIP
       if: always() && hashFiles('soundcredit-e2e.zip') != ''
-    uses: actions/upload-artifact@v4
-    with:
-      name: soundcredit-e2e.zip
-      path: soundcredit-e2e.zip
-      retention-days: 14
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundcredit-e2e.zip
+          path: soundcredit-e2e.zip
+          retention-days: 14
