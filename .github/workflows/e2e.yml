@@ -44,13 +44,16 @@ jobs:
             cypress/videos/**
           retention-days: 14
 
-      - name: Create ZIP package
-        run: npm run zip
+     # make the ZIP even if tests fail
+    - name: Create ZIP package
+    if: always()
+    run: npm run zip
 
-      - name: Upload ZIP
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: soundcredit-e2e.zip
-          path: soundcredit-e2e.zip
-          retention-days: 14
+    # only upload if the ZIP exists
+    - name: Upload ZIP
+      if: always() && hashFiles('soundcredit-e2e.zip') != ''
+    uses: actions/upload-artifact@v4
+    with:
+      name: soundcredit-e2e.zip
+      path: soundcredit-e2e.zip
+      retention-days: 14
