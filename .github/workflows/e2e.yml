@@ -10,16 +10,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4  
-      - name: Setup Node
+    - name: Checkout
+        uses: actions/checkout@v4
+    - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      - name: Install deps
+    - name: Install deps
         run: npm ci
-      - name: Cypress run
+    - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
           browser: chrome
@@ -29,7 +29,7 @@ jobs:
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           FINGERPRINT_STRICT: 'false'
-      - name: Upload Cypress artifacts
+    - name: Upload Cypress artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -38,9 +38,9 @@ jobs:
             cypress/reports/**
             cypress/screenshots/**
             cypress/videos/**
-          retention-days: 14
+            retention-days: 14
 
-     # make the ZIP even if tests fail
+    # make the ZIP even if tests fail
       - name: Create ZIP package
       if: always()
       run: npm run zip
