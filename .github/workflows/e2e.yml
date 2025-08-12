@@ -14,17 +14,17 @@ jobs:
       uses: actions/checkout@v4
     - name: Setup Node
       uses: actions/setup-node@v4
-        with:
-        node-version: '22'
-        cache: 'npm'
+      with:
+      node-version: '22'
+      cache: 'npm'
     - name: Install deps
-        run: npm ci
+      run: npm ci
     - name: Cypress run
-        uses: cypress-io/github-action@v6
-        with:
-          browser: chrome
-          build: echo "skip build"
-          config: baseUrl=https://portal.soundcredit.com
+      uses: cypress-io/github-action@v6
+      with:
+        browser: chrome
+        build: echo "skip build"
+        config: baseUrl=https://portal.soundcredit.com
         env:
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
