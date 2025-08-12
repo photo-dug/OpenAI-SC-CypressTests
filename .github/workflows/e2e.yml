@@ -2,7 +2,7 @@ name: E2E
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -10,44 +10,47 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Setup Node
-      uses: actions/setup-node@v4
-      with:
-      node-version: '22'
-      cache: 'npm'
-    - name: Install deps
-      run: npm ci
-    - name: Cypress run
-      uses: cypress-io/github-action@v6
-      with:
-        browser: chrome
-        build: echo "skip build"
-        config: baseUrl=https://portal.soundcredit.com
-        env:
-          SC_USERNAME: ${{ secrets.SC_USERNAME }}
-          SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
-          FINGERPRINT_STRICT: 'false'
-    - name: Upload Cypress artifacts
-      if: ${{ always() }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: cypress-artifacts
-        path: |
-          cypress/reports/**
-          cypress/screenshots/**
-          cypress/videos/**
-        retention-days: 14
-    # make the ZIP even if tests fail
-      - name: Create ZIP package
-      if: always()
-      run: npm run zip
-    # only upload if the ZIP exists
-      - name: Upload ZIP
-      if: always() && hashFiles('soundcredit-e2e.zip') != ''
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          browser: chrome
+          build: echo "skip build"
+          config: baseUrl=https://portal.soundcredit.com
+          env: SC_USERNAME=${{ secrets.SC_USERNAME }},SC_PASSWORD=${{ secrets.SC_PASSWORD }},FINGERPRINT_STRICT=false
+
+      - name: Upload Cypress artifacts
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-        name: soundcredit-e2e.zip
-        path: soundcredit-e2e.zip
-        retention-days: 14
+          name: cypress-artifacts
+          path: |
+            cypress/reports/**
+            cypress/screenshots/**
+            cypress/videos/**
+          retention-days: 14
+
+      # make the ZIP even if tests fail
+      - name: Create ZIP package
+        if: ${{ always() }}
+        run: npm run zip
+
+      # only upload if the ZIP exists
+      - name: Upload ZIP
+        if: ${{ always() && hashFiles('soundcredit-e2e.zip') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundcredit-e2e.zip
+          path: soundcredit-e2e.zip
+          retention-days: 14
