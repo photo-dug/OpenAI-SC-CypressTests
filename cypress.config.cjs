@@ -1,8 +1,7 @@
 // cypress.config.cjs
 const { defineConfig } = require('cypress');
-const mochawesome = require('cypress-mochawesome-reporter/plugin');
-const { registerAudioTasks } = require('./tasks/audio-fingerprint.cjs');
-const { registerResultsTasks } = require('./tasks/results-writer.cjs');
+// ❌ do NOT call the plugin's after:run to avoid hard crash
+// const mochawesomePlugin = require('cypress-mochawesome-reporter/plugin');
 
 module.exports = defineConfig({
   reporter: 'cypress-mochawesome-reporter',
@@ -10,7 +9,7 @@ module.exports = defineConfig({
     reportDir: 'cypress/reports',
     embeddedScreenshots: true,
     inlineAssets: true,
-    saveJson: true,
+    saveJson: true, // puts per-spec JSONs in cypress/reports/.jsons
   },
   env: {
     FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
@@ -26,10 +25,31 @@ module.exports = defineConfig({
     testIsolation: false,
     chromeWebSecurity: false,
     retries: { runMode: 2, openMode: 0 },
+
     setupNodeEvents(on, config) {
-      mochawesome(on);
-      registerAudioTasks(on, config);
-      registerResultsTasks(on, config);
+      // Instead of using the plugin's after:run (which throws on empty), do a guarded merge.
+      on('after:run', async () => {
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const merge = require('mochawesome-merge');
+        const generator = require('mochawesome-report-generator');
+
+        const jsonsDir = path.join(config.projectRoot, 'cypress', 'reports', '.jsons');
+        const outDir = path.join(config.projectRoot, 'cypress', 'reports');
+
+        if (!fs.existsSync(jsonsDir)) return; // nothing to merge
+        const hasJson = fs.readdirSync(jsonsDir).some(f => f.endsWith('.json'));
+        if (!hasJson) return; // nothing to merge
+
+        const reportJson = await merge({ files: [path.join(jsonsDir, '*.json')] });
+        await generator.create(reportJson, {
+          reportDir: outDir,
+          inline: true,
+          overwrite: true,
+          reportFilename: 'mochawesome',
+        });
+      });
+
       return config;
     },
   },
