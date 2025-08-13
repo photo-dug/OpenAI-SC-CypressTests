@@ -1,7 +1,6 @@
 // cypress.config.cjs
 const { defineConfig } = require('cypress');
-// ❌ do NOT call the plugin's after:run to avoid hard crash
-// const mochawesomePlugin = require('cypress-mochawesome-reporter/plugin');
+// NOTE: don't call the plugin's built-in merge hook; we'll do a guarded merge ourselves.
 
 module.exports = defineConfig({
   reporter: 'cypress-mochawesome-reporter',
@@ -9,7 +8,7 @@ module.exports = defineConfig({
     reportDir: 'cypress/reports',
     embeddedScreenshots: true,
     inlineAssets: true,
-    saveJson: true, // puts per-spec JSONs in cypress/reports/.jsons
+    saveJson: true, // writes JSONs into cypress/reports/.jsons
   },
   env: {
     FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
@@ -27,7 +26,7 @@ module.exports = defineConfig({
     retries: { runMode: 2, openMode: 0 },
 
     setupNodeEvents(on, config) {
-      // Instead of using the plugin's after:run (which throws on empty), do a guarded merge.
+      // Guarded merge: only generate HTML if JSON files actually exist.
       on('after:run', async () => {
         const fs = require('node:fs');
         const path = require('node:path');
@@ -37,9 +36,9 @@ module.exports = defineConfig({
         const jsonsDir = path.join(config.projectRoot, 'cypress', 'reports', '.jsons');
         const outDir = path.join(config.projectRoot, 'cypress', 'reports');
 
-        if (!fs.existsSync(jsonsDir)) return; // nothing to merge
+        if (!fs.existsSync(jsonsDir)) return;
         const hasJson = fs.readdirSync(jsonsDir).some(f => f.endsWith('.json'));
-        if (!hasJson) return; // nothing to merge
+        if (!hasJson) return;
 
         const reportJson = await merge({ files: [path.join(jsonsDir, '*.json')] });
         await generator.create(reportJson, {
