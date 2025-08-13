@@ -22,16 +22,16 @@ jobs:
       - name: Install deps
         run: npm ci
 
-# before Cypress run
-- name: Ensure artifact dirs exist
-  run: |
-    mkdir -p cypress/reports cypress/screenshots cypress/videos
-
-- name: Cypress run
-  uses: cypress-io/github-action@v6
-  with:
-    browser: chrome
-    config: baseUrl=https://portal.soundcredit.com
+      # before Cypress run
+      - name: Ensure artifact dirs exist
+      run: |
+      mkdir -p cypress/reports cypress/screenshots cypress/videos
+      
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+          with:
+            browser: chrome
+            config: baseUrl=https://portal.soundcredit.com
   env:
     SC_USERNAME: ${{ secrets.SC_USERNAME }}
     SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
