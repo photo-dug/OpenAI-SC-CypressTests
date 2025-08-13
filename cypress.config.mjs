@@ -6,17 +6,15 @@ import { registerResultsTasks } from './tasks/results-writer.js';
 export default defineConfig({
   reporter: 'cypress-mochawesome-reporter',
   reporterOptions: {
-    reportPageTitle: 'SoundCredit E2E',
+    reportDir: 'cypress/reports',
     embeddedScreenshots: true,
     inlineAssets: true,
     saveJson: true
   },
-  env: {
-    FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true'
-  },
   e2e: {
-    baseUrl: 'https://portal.soundcredit.com',
     video: true,
+    screenshotsFolder: 'cypress/screenshots',
+    videosFolder: 'cypress/videos',
     screenshotOnRunFailure: true,
     defaultCommandTimeout: 15000,
     pageLoadTimeout: 60000,
