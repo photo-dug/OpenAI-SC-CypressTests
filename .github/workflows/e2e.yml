@@ -12,8 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
-        - name: Setup Node
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -24,27 +24,23 @@ jobs:
 
       # before Cypress run
       - name: Ensure artifact dirs exist
-      run: |
-      mkdir -p cypress/reports cypress/screenshots cypress/videos
-      
+        run: |
+          mkdir -p cypress/reports cypress/screenshots cypress/videos
+
       - name: Cypress run
         uses: cypress-io/github-action@v6
-          with:
-            browser: chrome
-            config: baseUrl=https://portal.soundcredit.com
-  env:
-    SC_USERNAME: ${{ secrets.SC_USERNAME }}
-    SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
-    FINGERPRINT_STRICT: 'false'
-    SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
-          
+        with:
+          browser: chrome
+          config: baseUrl=https://portal.soundcredit.com
+          env: SC_USERNAME=${{ secrets.SC_USERNAME }},SC_PASSWORD=${{ secrets.SC_PASSWORD }},FINGERPRINT_STRICT=false,SKIP_AUDIO=${{ vars.SKIP_AUDIO || 'false' }}
+
       # after Cypress run
       - name: Upload Cypress artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: cypress-artifacts
-           # IMPORTANT: each path on its own line
+          # IMPORTANT: each path on its own line
           path: |
             cypress/reports/**
             cypress/screenshots/**
