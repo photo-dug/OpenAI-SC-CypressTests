@@ -32,7 +32,7 @@ jobs:
         with:
           browser: chrome
           config-file: cypress.config.cjs   # <-- use the CJS config
-          spec: cypress/e2e/soundcredit.e2e.cy.*
+          spec: cypress/e2e/soundcredit.e2e.cy.js   # <-- your spec
           build: echo "skip build"
           config: baseUrl=https://portal.soundcredit.com
           env: SC_USERNAME=${{ secrets.SC_USERNAME }},SC_PASSWORD=${{ secrets.SC_PASSWORD }},FINGERPRINT_STRICT=false,SKIP_AUDIO=${{ vars.SKIP_AUDIO || 'false' }}
