@@ -31,6 +31,9 @@ jobs:
         uses: cypress-io/github-action@v6
         with:
           browser: chrome
+          config-file: cypress.config.cjs   # <-- use the CJS config
+          spec: cypress/e2e/soundcredit.e2e.cy.*
+          build: echo "skip build"
           config: baseUrl=https://portal.soundcredit.com
           env: SC_USERNAME=${{ secrets.SC_USERNAME }},SC_PASSWORD=${{ secrets.SC_PASSWORD }},FINGERPRINT_STRICT=false,SKIP_AUDIO=${{ vars.SKIP_AUDIO || 'false' }}
 
