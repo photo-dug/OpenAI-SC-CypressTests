@@ -22,24 +22,35 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Cypress run
-        uses: cypress-io/github-action@v6
-        with:
-          browser: chrome
-          build: echo "skip build"
-          config: baseUrl=https://portal.soundcredit.com
-          env: SC_USERNAME=${{ secrets.SC_USERNAME }},SC_PASSWORD=${{ secrets.SC_PASSWORD }},FINGERPRINT_STRICT=false
+# before Cypress run
+- name: Ensure artifact dirs exist
+  run: |
+    mkdir -p cypress/reports cypress/screenshots cypress/videos
 
+- name: Cypress run
+  uses: cypress-io/github-action@v6
+  with:
+    browser: chrome
+    config: baseUrl=https://portal.soundcredit.com
+  env:
+    SC_USERNAME: ${{ secrets.SC_USERNAME }}
+    SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
+    FINGERPRINT_STRICT: 'false'
+    SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
+          
+      # after Cypress run
       - name: Upload Cypress artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: cypress-artifacts
+           # IMPORTANT: each path on its own line
           path: |
             cypress/reports/**
             cypress/screenshots/**
             cypress/videos/**
           retention-days: 14
+          if-no-files-found: ignore
 
       # make the ZIP even if tests fail
       - name: Create ZIP package
