@@ -1,6 +1,4 @@
-// cypress.config.cjs
 const { defineConfig } = require('cypress');
-// NOTE: don't call the plugin's built-in merge hook; we'll do a guarded merge ourselves.
 
 module.exports = defineConfig({
   reporter: 'cypress-mochawesome-reporter',
@@ -8,11 +6,11 @@ module.exports = defineConfig({
     reportDir: 'cypress/reports',
     embeddedScreenshots: true,
     inlineAssets: true,
-    saveJson: true, // writes JSONs into cypress/reports/.jsons
+    saveJson: true
   },
   env: {
     FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
-    SKIP_AUDIO: process.env.SKIP_AUDIO === 'true',
+    SKIP_AUDIO: process.env.SKIP_AUDIO === 'true'
   },
   e2e: {
     baseUrl: 'https://portal.soundcredit.com',
@@ -24,9 +22,8 @@ module.exports = defineConfig({
     testIsolation: false,
     chromeWebSecurity: false,
     retries: { runMode: 2, openMode: 0 },
-
     setupNodeEvents(on, config) {
-      // Guarded merge: only generate HTML if JSON files actually exist.
+      // Guarded merge: only generate HTML if JSON files actually exist
       on('after:run', async () => {
         const fs = require('node:fs');
         const path = require('node:path');
@@ -45,11 +42,12 @@ module.exports = defineConfig({
           reportDir: outDir,
           inline: true,
           overwrite: true,
-          reportFilename: 'mochawesome',
+          reportFilename: 'mochawesome'
         });
       });
 
+      // keep other node tasks you already registered elsewhere
       return config;
-    },
-  },
+    }
+  }
 });
