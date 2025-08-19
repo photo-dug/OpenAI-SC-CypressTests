@@ -34,10 +34,13 @@ describe('SoundCredit – Login → Play → Logout', () => {
      });
     cy.task('referenceFingerprint');
 //@@
-     it('01 – Login page loads & capture nav timing', () => {
+  it('01 – Login page loads & capture nav timing', () => {
   cy.visit('/login');
   cy.window().then((w) => {
-    const entry = w.performance.getEntriesByType('navigation')[0]; as; PerformanceNavigationTiming; | undefined;
+    const entries = w.performance && w.performance.getEntriesByType
+      ? w.performance.getEntriesByType('navigation')
+      : [];
+    const entry = Array.isArray(entries) && entries.length ? entries[0] : null;
     if (entry) {
       const data = typeof entry.toJSON === 'function' ? entry.toJSON() : entry;
       cy.task('recordNavTiming', data);
