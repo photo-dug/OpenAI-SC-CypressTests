@@ -20,8 +20,7 @@ function registerResultsTasks(on, config) {
       const out = path.join(outDir(config.projectRoot), 'results.json');
       fs.writeFileSync(out, JSON.stringify(state, null, 2));
       return out;
-    },
+    }
   });
 }
-
 module.exports = { registerResultsTasks };
