@@ -14,21 +14,18 @@ function pcmS16ToFloat32(buf) {
   }
   return out;
 }
-
 function average(rows) {
   if (!rows.length) return [];
   const sum = new Array(rows[0].length).fill(0);
   for (const r of rows) r.forEach((v, i) => (sum[i] += v));
   return sum.map((v) => v / rows.length);
 }
-
 function cosine(a, b) {
-  const dot = a.reduce((s, v, i) => s + v * (b[i] || 0), 0);
-  const na = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
-  const nb = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
+  const dot = (a || []).reduce((s, v, i) => s + v * ((b || [])[i] || 0), 0);
+  const na = Math.sqrt((a || []).reduce((s, v) => s + v * v, 0));
+  const nb = Math.sqrt((b || []).reduce((s, v) => s + v * v, 0));
   return na && nb ? dot / (na * nb) : 0;
 }
-
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const args = ['-ss', '0', '-t', String(seconds), '-i', input, '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 's16le', '-'];
@@ -42,7 +39,6 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     });
   });
 }
-
 function fingerprintFromPCM(pcm, sampleRate = 16000) {
   const frameSize = 1024;
   const hop = 512;
@@ -55,19 +51,18 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
   }
   return average(features);
 }
-
 function registerAudioTasks(on, config) {
   on('task', {
     async referenceFingerprint() {
       try {
         if (cachedRef) return cachedRef;
         const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-        if (!fs.existsSync(p)) return null; // spec will warn, not fail
+        if (!fs.existsSync(p)) return null;
         const pcm = await decodeToPCMFromUrl(p);
         cachedRef = fingerprintFromPCM(pcm);
         return cachedRef;
       } catch {
-        return null; // never throw from task
+        return null;
       }
     },
     async fingerprintAudioFromUrl(url) {
@@ -75,14 +70,13 @@ function registerAudioTasks(on, config) {
         const pcm = await decodeToPCMFromUrl(url);
         return fingerprintFromPCM(pcm);
       } catch {
-        return null; // never throw from task
+        return null;
       }
     },
     compareFingerprints({ a, b, threshold = 0.9 }) {
-      const score = cosine(a || [], b || []);
+      const score = cosine(a, b);
       return { score, pass: score >= threshold };
-    },
+    }
   });
 }
-
 module.exports = { registerAudioTasks };
