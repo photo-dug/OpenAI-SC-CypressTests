@@ -37,7 +37,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
      it('01 – Login page loads & capture nav timing', () => {
   cy.visit('/login');
   cy.window().then((w) => {
-    const entry = w.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const entry = w.performance.getEntriesByType('navigation')[0]; as PerformanceNavigationTiming | undefined;
     if (entry) {
       const data = typeof entry.toJSON === 'function' ? entry.toJSON() : entry;
       cy.task('recordNavTiming', data);
