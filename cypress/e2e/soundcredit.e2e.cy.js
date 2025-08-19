@@ -193,15 +193,15 @@ describe('SoundCredit – Login → Play → Logout', () => {
     });
   });
 //@@
--  after(() => {
--    cy.task('flushResults').then((outPath) => {
--      cy.log(`Results written to ${outPath}`);
--    });
--  });
-+  after(() => {
-+    // Flush batched requests from intercept callback
-+    cy.then(() => cy.task('recordRequestsBatch', requests))
-+      .then(() => cy.task('flushResults'))
-+      .then((outPath) => { cy.log(`Results written to ${outPath}`); });
-+  });
+//-  after(() => {
+//-    cy.task('flushResults').then((outPath) => {
+//-      cy.log(`Results written to ${outPath}`);
+//-    });
+//-  });
+  after(() => {
+    // Flush batched requests from intercept callback
+    cy.then(() => cy.task('recordRequestsBatch', requests))
+      .then(() => cy.task('flushResults'))
+      .then((outPath) => { cy.log(`Results written to ${outPath}`); });
+  });
  });
