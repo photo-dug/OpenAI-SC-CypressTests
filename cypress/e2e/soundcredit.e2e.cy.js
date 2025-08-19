@@ -34,7 +34,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
      });
     cy.task('referenceFingerprint');
 //@@
-  it('01 – Login page loads & capture nav timing', () => {
+it('01 – Login page loads & capture nav timing', () => {
   cy.visit('/login');
   cy.window().then((w) => {
     const entries = w.performance && w.performance.getEntriesByType
@@ -44,8 +44,9 @@ describe('SoundCredit – Login → Play → Logout', () => {
     if (entry) {
       const data = typeof entry.toJSON === 'function' ? entry.toJSON() : entry;
       cy.task('recordNavTiming', data);
-    });
+    }
   });
+});
 
   it('02 – Login with credentials', () => {
     const t0 = Date.now();
