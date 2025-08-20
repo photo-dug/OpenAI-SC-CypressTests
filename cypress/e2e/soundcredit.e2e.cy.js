@@ -178,7 +178,7 @@ it('01 – Login page loads & capture nav timing', () => {
       const t1 = ($audio[0].currentTime;
       cy.wait(1500);
       cy.get('audio').first().then(($audio2) => {
-        const t2 = ($audio2[0].currentTime;
+        const t2 = $audio2[0].currentTime;
         expect(t2).to.be.greaterThan(t1);
       });
     });
