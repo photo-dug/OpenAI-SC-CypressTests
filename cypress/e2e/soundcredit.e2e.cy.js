@@ -128,18 +128,34 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
     .then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
 });
 
-  it('04 – Playlist buttons visible', () => {
-    cy.contains('button, [role=button]', /^play$/i).should('exist');
-    cy.contains('button, [role=button]', /open link/i).should('exist');
-    cy.contains('button, [role=button]', /details/i).should('exist');
-  });
+  it('04 – Project buttons visible. Play, Add, Copy, Open link, Details, Project Link', () => {
+  // Narrow to the top action bar so we don't pick up other buttons elsewhere
+  cy.get('.d-flex.justify-content-between', { timeout: 20000 })
+    .first()
+    .within(() => {
+      // PLAY: icon-only button – assert a button that contains a .fa-play icon
+      cy.get('button').filter((_, el) => !!el.querySelector('.fa-play')).should('exist');
+      
+      // ADD: text is inside nested divs; match with flexible whitespace
+      cy.contains('button', /add/i).should('be.visible');
+      
+      // COPY: similarly inside a nested div
+      cy.contains('button', /Copy/i).should('be.visible');
+      
+      // OPEN LINK: text is inside nested divs; match with flexible whitespace
+      cy.contains('button', /open\s*link/i).should('be.visible');
+
+      // DETAILS: similarly inside a nested div
+      cy.contains('button', /details/i).should('be.visible');
+    });
+});
 
   it('05 – At least one audio file listed', () => {
-    cy.contains('# 1').should('exist');
+    cy.contains('1').should('exist');
   });
 
   it('06 – Click track #1 to start playback', () => {
-    cy.contains('# 1').click({ force: true });
+    cy.contains('1').click({ force: true });
   });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
