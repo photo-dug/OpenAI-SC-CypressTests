@@ -52,33 +52,47 @@ describe('SoundCredit – Login → Play → Logout', () => {
   });
 
   it('02 – Login with credentials', () => {
-    const t0 = Date.now();
-    // dismiss cookie banners if present
-    cy.get('body').then(($b) => {
-      const txt = $b.text();
-      if (/accept|agree|cookie/i.test(txt)) {
-        cy.contains(/accept|agree/i).click({ multiple: true, force: true }).catch(() => {});
-      }
-    });
+  const t0 = Date.now();
 
-    // username
-    cy.contains('label', /email|username/i).invoke('attr', 'for').then((id) => {
-      if (id) cy.get(`#${id}`).type(username);
-      else cy.get('input[type=email], input[name=email], input[name=username]').first().type(username);
-    });
-
-    // password
-    cy.contains('label', /password/i).invoke('attr', 'for').then((id) => {
-      if (id) cy.get(`#${id}`).type(password);
-      else cy.get('input[type=password], input[name=password]').first().type(password);
-    });
-
-    cy.contains('button, [role=button]', /sign in|log in/i).click();
-    cy.contains(/projects|dashboard|library/i, { timeout: 30000 })
-      .should('be.visible')
-      .then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
+  // dismiss cookie/consent banners if they appear
+  cy.get('body').then(($b) => {
+    const txt = $b.text();
+    if (/accept|agree|cookie/i.test(txt)) {
+      cy.contains(/accept|agree/i).click({ multiple: true, force: true }).catch(() => {});
+    }
   });
 
+  // EMAIL / USERNAME
+  cy.get(
+    '.username-container input[placeholder="Email"], ' +
+    '.username-container input[name="email"], ' +
+    'input[placeholder="Email"], input[name="email"], input[type="email"]',
+    { timeout: 15000 }
+  )
+    .should('be.visible')
+    .first()
+    .clear()
+    .type(username, { delay: 20 });
+
+  // PASSWORD
+  cy.get('input[placeholder="Password"], input[name="password"], input[type="password"]', { timeout: 15000 })
+    .should('be.visible')
+    .first()
+    .clear()
+    .type(password, { log: false });
+
+  // SUBMIT
+  cy.contains('button, [role=button], input[type=submit]', /sign in|log in|log on/i)
+    .should('be.enabled')
+    .click();
+
+  // POST-LOGIN ASSERTION + TIMING
+  cy.location('pathname', { timeout: 30000 })
+    .should('not.include', '/login');
+  cy.contains(/projects|dashboard|library/i, { timeout: 30000 })
+    .should('be.visible')
+    .then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
+});
   it('03 – Open project "The Astronauts - Surf Party"', () => {
     const t0 = Date.now();
     cy.contains('The Astronauts - Surf Party', { timeout: 20000 }).click();
