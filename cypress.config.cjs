@@ -27,25 +27,32 @@ module.exports = defineConfig({
       on('after:run', async () => {
         const fs = require('node:fs');
         const path = require('node:path');
-        const merge = require('mochawesome-merge');
+      //- const merge = require('mochawesome-merge');
+      //- const generator = require('mochawesome-report-generator');
+        const mm = require('mochawesome-merge');
+        const merge = (mm && (mm.merge || mm.default || mm));
         const generator = require('mochawesome-report-generator');
-
         const jsonsDir = path.join(config.projectRoot, 'cypress', 'reports', '.jsons');
         const outDir = path.join(config.projectRoot, 'cypress', 'reports');
 
-        if (!fs.existsSync(jsonsDir)) return;
-        const hasJson = fs.readdirSync(jsonsDir).some(f => f.endsWith('.json'));
-        if (!hasJson) return;
+// bail out if merge isn’t a function (version mismatch)
+  if (typeof merge !== 'function') {
+    console.warn('mochawesome-merge not a function; skipping HTML merge.');
+    return;
+  }
 
-        const reportJson = await merge({ files: [path.join(jsonsDir, '*.json')] });
-        await generator.create(reportJson, {
-          reportDir: outDir,
-          inline: true,
-          overwrite: true,
-          reportFilename: 'mochawesome'
-        });
-      });
-
+  try {
+    const reportJson = await merge({ files: [path.join(jsonsDir, '*.json')] });
+    await generator.create(reportJson, {
+      reportDir: outDir,
+      inline: true,
+      overwrite: true,
+      reportFilename: 'mochawesome',
+    });
+  } catch (e) {
+    console.warn('Skipping HTML merge:', e && e.message ? e.message : e);
+  }
+});
       // keep other node tasks you already registered elsewhere
       return config;
     }
