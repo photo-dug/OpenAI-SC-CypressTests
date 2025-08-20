@@ -175,7 +175,7 @@ it('01 – Login page loads & capture nav timing', () => {
 
   it('09 – Progress advances, then pause toggles', () => {
     cy.get('audio').first().then(($audio) => {
-      const t1 = ($audio[0].currentTime;
+      const t1 = $audio[0].currentTime;
       cy.wait(1500);
       cy.get('audio').first().then(($audio2) => {
         const t2 = $audio2[0].currentTime;
