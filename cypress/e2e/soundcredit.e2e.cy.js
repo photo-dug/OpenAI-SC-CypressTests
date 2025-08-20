@@ -211,3 +211,4 @@ it('01 – Login page loads & capture nav timing', () => {
       .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
  });
+});
