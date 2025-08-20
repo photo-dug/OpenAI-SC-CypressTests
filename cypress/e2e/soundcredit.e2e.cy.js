@@ -93,13 +93,40 @@ describe('SoundCredit – Login → Play → Logout', () => {
     .should('be.visible')
     .then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
 });
-  it('03 – Open project "The Astronauts - Surf Party"', () => {
-    const t0 = Date.now();
-    cy.contains('The Astronauts - Surf Party', { timeout: 20000 }).click();
-    cy.contains('button, [role=button]', /open link/i, { timeout: 20000 })
-      .should('be.visible')
-      .then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
-  });
+it('03 – Open project "The Astronauts - Surf Party"', () => {
+  const t0 = Date.now();
+  const title = 'The Astronauts - Surf Party';
+  const re = new RegExp(`\\b${Cypress._.escapeRegExp(title)}\\b`, 'i');
+
+  // 1) Best case: it’s an accessible link/button with the project name
+  cy.findByRole('link', { name: re, timeout: 20000 })
+    .then($lnk => {
+      if ($lnk.length) {
+        cy.wrap($lnk).scrollIntoView().click();
+        return;
+      }
+      throw new Error('no-aria-link');
+    })
+    .catch(() => {
+      // 2) Fallback: find the card, then click its inner link/button (or the card itself)
+      cy.get('[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card', { timeout: 20000 })
+        .then($cards => {
+          // find the first card whose innerText matches the title
+          const target = [...$cards].find(el => re.test(el.innerText || ''));
+          expect(target, `project card "${title}"`).to.exist;
+
+          const clickable =
+            target.querySelector('a,button,[role="link"],[role="button"]') || target;
+
+          cy.wrap(clickable).scrollIntoView().click({ force: true });
+        });
+    });
+
+  // page ready = playlist has the "Open Link" button
+  cy.contains('button, [role=button]', /open link/i, { timeout: 20000 })
+    .should('be.visible')
+    .then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
+});
 
   it('04 – Playlist buttons visible', () => {
     cy.contains('button, [role=button]', /^play$/i).should('exist');
