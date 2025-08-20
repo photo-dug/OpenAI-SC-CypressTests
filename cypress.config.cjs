@@ -1,4 +1,10 @@
+// cypress.config.cjs
 const { defineConfig } = require('cypress');
+const mm = require('mochawesome-merge');                 // robust import
+const merge = (mm && (mm.merge || mm.default || mm));    // handle different exports
+const generator = require('mochawesome-report-generator');
+const { registerAudioTasks } = require('./tasks/audio-fingerprint.cjs');
+const { registerResultsTasks } = require('./tasks/results-writer.cjs');
 
 module.exports = defineConfig({
   reporter: 'cypress-mochawesome-reporter',
@@ -9,6 +15,9 @@ module.exports = defineConfig({
     saveJson: true
   },
   env: {
+    // Make secrets available to Cypress.env() whether you pass SC_* or CYPRESS_SC_* in the workflow
+    SC_USERNAME: process.env.SC_USERNAME || process.env.CYPRESS_SC_USERNAME || '',
+    SC_PASSWORD: process.env.SC_PASSWORD || process.env.CYPRESS_SC_PASSWORD || '',
     FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
     SKIP_AUDIO: process.env.SKIP_AUDIO === 'true'
   },
@@ -23,38 +32,36 @@ module.exports = defineConfig({
     chromeWebSecurity: false,
     retries: { runMode: 2, openMode: 0 },
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
+
     setupNodeEvents(on, config) {
-      // Guarded merge: only generate HTML if JSON files actually exist
+      // Guarded mochawesome merge: generate HTML only if JSONs exist
       on('after:run', async () => {
         const fs = require('node:fs');
         const path = require('node:path');
-      //- const merge = require('mochawesome-merge');
-      //- const generator = require('mochawesome-report-generator');
-        const mm = require('mochawesome-merge');
-        const merge = (mm && (mm.merge || mm.default || mm));
-        const generator = require('mochawesome-report-generator');
         const jsonsDir = path.join(config.projectRoot, 'cypress', 'reports', '.jsons');
         const outDir = path.join(config.projectRoot, 'cypress', 'reports');
 
-// bail out if merge isn’t a function (version mismatch)
-  if (typeof merge !== 'function') {
-    console.warn('mochawesome-merge not a function; skipping HTML merge.');
-    return;
-  }
+        if (!fs.existsSync(jsonsDir)) return;
+        const hasJson = fs.readdirSync(jsonsDir).some(f => f.endsWith('.json'));
+        if (!hasJson || typeof merge !== 'function') return;
 
-  try {
-    const reportJson = await merge({ files: [path.join(jsonsDir, '*.json')] });
-    await generator.create(reportJson, {
-      reportDir: outDir,
-      inline: true,
-      overwrite: true,
-      reportFilename: 'mochawesome',
-    });
-  } catch (e) {
-    console.warn('Skipping HTML merge:', e && e.message ? e.message : e);
-  }
-});
-      // keep other node tasks you already registered elsewhere
+        try {
+          const reportJson = await merge({ files: [path.join(jsonsDir, '*.json')] });
+          await generator.create(reportJson, {
+            reportDir: outDir,
+            inline: true,
+            overwrite: true,
+            reportFilename: 'mochawesome'
+          });
+        } catch (e) {
+          console.warn('Skipping HTML merge:', e && e.message ? e.message : e);
+        }
+      });
+
+      // ✅ Register tasks so cy.task(...) works
+      registerAudioTasks(on, config);
+      registerResultsTasks(on, config);
+
       return config;
     }
   }
