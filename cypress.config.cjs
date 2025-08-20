@@ -22,6 +22,7 @@ module.exports = defineConfig({
     testIsolation: false,
     chromeWebSecurity: false,
     retries: { runMode: 2, openMode: 0 },
+    specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
     setupNodeEvents(on, config) {
       // Guarded merge: only generate HTML if JSON files actually exist
       on('after:run', async () => {
