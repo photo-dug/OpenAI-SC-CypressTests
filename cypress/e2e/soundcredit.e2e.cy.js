@@ -192,7 +192,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
       .should('eq', '/login')
       .then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
   });
-
   after(() => {
     // Flush batched requests from intercept callback, then write results.json
     cy.then(() => cy.task('recordRequestsBatch', requests))
