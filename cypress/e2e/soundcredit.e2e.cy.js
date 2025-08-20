@@ -99,35 +99,59 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
   const title = 'The Astronauts - Surf Party';
   const re = new RegExp(`\\b${Cypress._.escapeRegExp(title)}\\b`, 'i');
 
-  // (Optional) filter via search bar if present to stabilize selection
-  cy.get('input#pill-search-bar, input[placeholder="Search..."]').then($inp => {
-    if ($inp.length) cy.wrap($inp).clear().type(title, { delay: 20 });
-  });
+  // 1) Narrow the list if the search bar exists
+  cy.get('input#pill-search-bar, input[placeholder="Search..."]', { timeout: 5000 })
+    .then($inp => {
+      if ($inp.length) cy.wrap($inp).clear().type(title, { delay: 10 }).blur();
+    });
 
-  // Find the title anywhere, climb to the card, then click overlay play or a fallback
-  cy.contains(re, { timeout: 20000 }).then($title => {
-    const card =
-      $title[0].closest('[class*="project-preview-card"]') ||
-      $title[0].closest('.project-preview-card') ||
-      $title[0].closest('.card');
+  // 2) Wait for cards / thumbnails to render
+  cy.get('.project-thumbnail-container', { timeout: 20000 }).should('exist');
 
-    expect(card, `project card container for "${title}"`).to.exist;
+  // 3) Find the thumbnail whose containing card text matches the title, then click its overlay play
+  cy.get('body').then(($body) => {
+    const thumbs = $body.find('.project-thumbnail-container').toArray();
+    let chosenThumb = null;
+
+    for (const el of thumbs) {
+      const card =
+        el.closest('[class*="project-preview-card"]') ||
+        el.closest('.project-preview-card') ||
+        el.closest('.card') ||
+        el.parentElement;
+      const text = (card && card.innerText) ? card.innerText.trim() : '';
+      if (re.test(text)) { chosenThumb = el; break; }
+    }
+
+    if (!chosenThumb) {
+      // Fallback: click a card by its title text directly (if clickable)
+      cy.contains(
+        '[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card',
+        re,
+        { timeout: 20000 }
+      ).scrollIntoView().click({ force: true });
+      return;
+    }
 
     const playBtn =
-      card.querySelector('.project-thumbnail-container .play-button') ||
-      card.querySelector('.project-thumbnail-container button');
+      chosenThumb.querySelector('.play-button') ||
+      chosenThumb.querySelector('button') ||
+      chosenThumb.querySelector('.fa-play')?.closest('button');
+    
+    cy.get('[class*="project-preview-card"], .project-preview-card, .card').then($cards => {
+    const titles = [...$cards].map(n => (n.innerText || '').trim()).slice(0, 10);
+    cy.log('first card texts:', JSON.stringify(titles));
+  });
 
     if (playBtn) {
       cy.wrap(playBtn).scrollIntoView().click({ force: true });
     } else {
-      // Fallbacks if overlay button not found/visible
-      const clickable =
-        card.querySelector('a,button,[role="link"],[role="button"], .project-thumbnail-container') || card;
-      cy.wrap(clickable).scrollIntoView().click({ force: true });
+      // Last resort: click the thumb container itself
+      cy.wrap(chosenThumb).scrollIntoView().click({ force: true });
     }
   });
 
-  // Confirm we landed on the playlist: look for the toolbar actions globally (not scoped to navbar)
+  // 4) Confirm we’re on the playlist page by checking the known toolbar controls (global, not navbar)
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i, { timeout: 30000 }).should('be.visible');
   cy.get('button').filter((_, el) => !!el.querySelector('.fa-play')).should('exist');
