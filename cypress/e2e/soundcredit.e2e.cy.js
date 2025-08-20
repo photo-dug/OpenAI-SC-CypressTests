@@ -99,23 +99,24 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
   const title = 'The Astronauts - Surf Party';
   const re = new RegExp(`\\b${Cypress._.escapeRegExp(title)}\\b`, 'i');
 
-  // Try accessible link first; if not found, fall back to scanning cards
-  cy.findAllByRole('link', { name: re, timeout: 2000 }).then(($links) => {
-    if ($links.length) {
-      cy.wrap($links[0]).scrollIntoView().click({ force: true });
-    } else {
-      // Fallback: find a card whose innerText matches the title, then click a child link/button (or the card)
-      cy.get('[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card', { timeout: 20000 })
-        .then(($cards) => {
-          const el = [...$cards].find((n) => re.test(n.textContent || ''));
-          expect(el, `project card "${title}"`).to.exist;
-          const clickable = el.querySelector('a,button,[role="link"],[role="button"]') || el;
-          cy.wrap(clickable).scrollIntoView().click({ force: true });
-        });
-    }
+  // Wait until at least one project card is present (list has rendered)
+  cy.get('[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card', {
+    timeout: 20000,
+  }).should('exist');
+
+  // Find the card whose inner text matches the title, then click a clickable child (or the card)
+  cy.get('body').then(($body) => {
+    const cards = $body.find('[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card').toArray();
+    const target = cards.find((el) => re.test((el.innerText || '').trim()));
+    expect(target, `project card "${title}"`).to.exist;
+
+    const clickable =
+      target.querySelector('a,button,[role="link"],[role="button"]') || target;
+
+    cy.wrap(clickable).scrollIntoView().click({ force: true });
   });
 
-  // Wait for playlist page to be ready by checking the known toolbar buttons
+  // confirm we landed on the playlist view (toolbar buttons present)
   cy.get('.d-flex.justify-content-between', { timeout: 20000 })
     .first()
     .within(() => {
@@ -124,7 +125,7 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
     })
     .then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
 });
-
+  
   it('04 – Project buttons visible. Play, Add, Copy, Open link, Details, Project Link', () => {
   // Narrow to the top action bar so we don't pick up other buttons elsewhere
   cy.get('.d-flex.justify-content-between', { timeout: 20000 })
