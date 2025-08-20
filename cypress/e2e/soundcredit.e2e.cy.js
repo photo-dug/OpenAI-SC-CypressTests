@@ -93,38 +93,35 @@ describe('SoundCredit – Login → Play → Logout', () => {
     .should('be.visible')
     .then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
 });
+  
 it('03 – Open project "The Astronauts - Surf Party"', () => {
   const t0 = Date.now();
   const title = 'The Astronauts - Surf Party';
   const re = new RegExp(`\\b${Cypress._.escapeRegExp(title)}\\b`, 'i');
 
-  // 1) Best case: it’s an accessible link/button with the project name
-  cy.findByRole('link', { name: re, timeout: 20000 })
-    .then($lnk => {
-      if ($lnk.length) {
-        cy.wrap($lnk).scrollIntoView().click();
-        return;
-      }
-      throw new Error('no-aria-link');
-    })
-    .catch(() => {
-      // 2) Fallback: find the card, then click its inner link/button (or the card itself)
+  // Try accessible link first; if not found, fall back to scanning cards
+  cy.findAllByRole('link', { name: re, timeout: 2000 }).then(($links) => {
+    if ($links.length) {
+      cy.wrap($links[0]).scrollIntoView().click({ force: true });
+    } else {
+      // Fallback: find a card whose innerText matches the title, then click a child link/button (or the card)
       cy.get('[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card', { timeout: 20000 })
-        .then($cards => {
-          // find the first card whose innerText matches the title
-          const target = [...$cards].find(el => re.test(el.innerText || ''));
-          expect(target, `project card "${title}"`).to.exist;
-
-          const clickable =
-            target.querySelector('a,button,[role="link"],[role="button"]') || target;
-
+        .then(($cards) => {
+          const el = [...$cards].find((n) => re.test(n.textContent || ''));
+          expect(el, `project card "${title}"`).to.exist;
+          const clickable = el.querySelector('a,button,[role="link"],[role="button"]') || el;
           cy.wrap(clickable).scrollIntoView().click({ force: true });
         });
-    });
+    }
+  });
 
-  // page ready = playlist has the "Open Link" button
-  cy.contains('button, [role=button]', /open link/i, { timeout: 20000 })
-    .should('be.visible')
+  // Wait for playlist page to be ready by checking the known toolbar buttons
+  cy.get('.d-flex.justify-content-between', { timeout: 20000 })
+    .first()
+    .within(() => {
+      cy.contains('button', /open\s*link/i).should('be.visible');
+      cy.contains('button', /details/i).should('be.visible');
+    })
     .then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
 });
 
