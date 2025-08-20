@@ -43,8 +43,12 @@ jobs:
           build: echo "skip build"
           config: baseUrl=https://portal.soundcredit.com
         env:
+          # Secrets
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
+          CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
+          CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
+          # Controls
           FINGERPRINT_STRICT: 'false'
           SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
 
