@@ -178,7 +178,7 @@ it('01 – Login page loads & capture nav timing', () => {
       const t1 = ($audio[0] as HTMLAudioElement).currentTime;
       cy.wait(1500);
       cy.get('audio').first().then(($audio2) => {
-        const t2 = ($audio2[0] as HTMLAudioElement).currentTime;
+        const t2 = ($audio2[0].currentTime;
         expect(t2).to.be.greaterThan(t1);
       });
     });
@@ -186,7 +186,7 @@ it('01 – Login page loads & capture nav timing', () => {
     cy.contains('button, [role=button]', /play|pause/i).click();
     cy.wait(800);
     cy.get('audio').first().then(($audio) => {
-      const el = $audio[0] as HTMLAudioElement;
+      const el = $audio[0];
       expect(el.paused).to.eq(true);
     });
   });
