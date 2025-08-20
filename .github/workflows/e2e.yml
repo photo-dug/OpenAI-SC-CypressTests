@@ -28,8 +28,7 @@ jobs:
           node -v
           npm -v
           npx cypress --version || true
-          ls -la
-          ls -la cypress || true
+          npx cypress info || true
           ls -la cypress/e2e || true
 
       - name: Ensure artifact dirs exist
