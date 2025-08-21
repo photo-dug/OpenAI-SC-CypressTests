@@ -278,5 +278,6 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
     cy.then(() => cy.task('recordRequestsBatch', requests))
       .then(() => cy.task('flushResults'))
       .then((outPath) => { cy.log(`Results written to ${outPath}`); });
+    });
   });
 });
