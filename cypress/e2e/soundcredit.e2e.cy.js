@@ -99,57 +99,50 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
   const title = 'The Astronauts - Surf Party';
   const re = new RegExp(`\\b${Cypress._.escapeRegExp(title)}\\b`, 'i');
 
-  // 1) Narrow the list if the search bar exists
-  cy.get('input#pill-search-bar, input[placeholder="Search..."]', { timeout: 5000 })
-    .then($inp => {
-      if ($inp.length) cy.wrap($inp).clear().type(title, { delay: 10 }).blur();
-    });
-
-  // 2) Wait for cards / thumbnails to render
-  cy.get('.project-thumbnail-container', { timeout: 20000 }).should('exist');
-
-  // 3) Find the thumbnail whose containing card text matches the title, then click its overlay play
-  cy.get('body').then(($body) => {
-    const thumbs = $body.find('.project-thumbnail-container').toArray();
-    let chosenThumb = null;
-
-    for (const el of thumbs) {
-      const card =
-        el.closest('[class*="project-preview-card"]') ||
-        el.closest('.project-preview-card') ||
-        el.closest('.card') ||
-        el.parentElement;
-      const text = (card && card.innerText) ? card.innerText.trim() : '';
-      if (re.test(text)) { chosenThumb = el; break; }
+  // 1) If we're not already on /playlists, go there via the left sidebar
+  cy.location('pathname', { timeout: 20000 }).then((p) => {
+    if (!p.startsWith('/playlists')) {
+      cy.get('a.sidebar-nav-link[href="/playlists"]', { timeout: 20000 })
+        .should('be.visible')
+        .click();
     }
+  });
 
-    if (!chosenThumb) {
-      // Fallback: click a card by its title text directly (if clickable)
-      cy.contains(
-        '[class*="project-preview-card"], .project-preview-card, .project-preview-card.card, .card',
-        re,
-        { timeout: 20000 }
-      ).scrollIntoView().click({ force: true });
+  // 2) Wait for either the left list OR grid of cards to appear
+  cy.get('body', { timeout: 20000 }).should(($b) => {
+    const hasList = $b.find('.playlist-bottom-submenu a[href^="/playlists/"]').length > 0;
+    const hasGrid = $b.find('.project-grid-container .project-preview-card').length > 0;
+    expect(hasList || hasGrid, 'projects list or grid present').to.eq(true);
+  });
+
+  // 3) Prefer left list link; fallback to grid card if needed
+  cy.get('body').then(($b) => {
+    // Prefer the SIDEBAR LIST
+    const links = $b.find('.playlist-bottom-submenu a[href^="/playlists/"]').toArray();
+    const matchLink = links.find((a) => re.test((a.innerText || '').trim()));
+    if (matchLink) {
+      cy.wrap(matchLink).scrollIntoView().click({ force: true });
       return;
     }
 
-    const playBtn =
-      chosenThumb.querySelector('.play-button') ||
-      chosenThumb.querySelector('button') ||
-      chosenThumb.querySelector('.fa-play')?.closest('button');
-    
-    cy.get('[class*="project-preview-card"], .project-preview-card, .card').then($cards => {
-    const titles = [...$cards].map(n => (n.innerText || '').trim()).slice(0, 10);
-    cy.log('first card texts:', JSON.stringify(titles));
+    // Fallback: GRID CARD by project title → click a clickable child or the thumbnail container
+    const titles = $b.find('.project-preview-card .project-title').toArray();
+    const titleEl = titles.find((el) => re.test((el.textContent || '').trim()));
+    expect(titleEl, `project title "${title}"`).to.exist;
+
+    const card = titleEl.closest('.project-preview-card') || titleEl.closest('.card');
+    const clickable =
+      card.querySelector('a,button,[role="link"],[role="button"], .project-thumbnail-container') || card;
+
+    cy.wrap(clickable).scrollIntoView().click({ force: true });
   });
 
-    if (playBtn) {
-      cy.wrap(playBtn).scrollIntoView().click({ force: true });
-    } else {
-      // Last resort: click the thumb container itself
-      cy.wrap(chosenThumb).scrollIntoView().click({ force: true });
-    }
-  });
+  // 4) Confirm the PLAYLIST page loaded (toolbar buttons present)
+  cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 }).should('be.visible');
+  cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 30000 }).should('be.visible');
+
+  cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 });
+});
 
   // 4) Confirm we’re on the playlist page by checking the known toolbar controls (global, not navbar)
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 }).should('be.visible');
