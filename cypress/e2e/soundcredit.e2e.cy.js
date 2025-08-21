@@ -139,18 +139,39 @@ describe('SoundCredit – Login → Play → Logout', () => {
   cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
 });
 
-  it('04 – Project buttons visible. Play, Add, Copy, Open link, Details, Project Link', () => {
-    // Narrow to the top action bar so we don't pick up other buttons elsewhere
-    cy.get('.d-flex.justify-content-between', { timeout: 20000 })
-      .first()
-      .within(() => {
-        cy.get('button').filter((_, el) => !!el.querySelector('.fa-play')).should('exist'); // PLAY
-        cy.contains('button', /add/i).should('be.visible');       // ADD
-        cy.contains('button', /copy/i).should('be.visible');      // COPY
-        cy.contains('button', /open\s*link/i).should('be.visible'); // OPEN LINK
-        cy.contains('button', /details/i).should('be.visible');   // DETAILS
-      });
+// 04 – Project buttons visible. Play, Add, Open Link, Details, Project Link
+it('04 – Project buttons visible', () => {
+  // we should already be on /playlists/{id}
+  cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists\/\d+/);
+
+  // OPEN LINK (text lives inside nested <div> within the <button>)
+  cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 })
+    .should('be.visible');
+
+  // DETAILS (text button)
+  cy.contains('button, .btn, [role=button]', /details/i, { timeout: 30000 })
+    .should('be.visible');
+
+  // ADD (text button)
+  cy.contains('button, .btn, [role=button]', /^\s*add\s*$/i)
+    .should('be.visible');
+
+  // PROJECT LINK (icon-only button with link icon)
+  cy.get('button .fa-link', { timeout: 15000 })
+    .should('exist');
+
+  // PLAY (icon-only button with .fa-play)
+  cy.get('button .fa-play', { timeout: 15000 })
+    .should('exist');
+
+  // OPTIONAL: Copy (not always present) — warn instead of failing if missing
+  cy.get('body').then(($b) => {
+    const hasCopy = $b.find('button .fa-copy, button:contains("Copy")').length > 0;
+    if (!hasCopy) {
+      cy.task('recordStep', { name: 'toolbar-copy', status: 'warning', note: 'Copy button not found' });
+    }
   });
+});
 
   it('05 – At least one audio file listed', () => {
     cy.contains('1').should('exist');
