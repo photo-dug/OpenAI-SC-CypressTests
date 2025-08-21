@@ -205,7 +205,7 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
           const t2 = el.currentTime;
           expect(t2).to.be.greaterThan(t1);
         });
-      }
+      };
     });
 
     // fingerprint chain (no async/await; no cy.* inside raw callbacks)
