@@ -277,6 +277,9 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
     // Flush batched requests from intercept callback, then write results.json
     cy.then(() => cy.task('recordRequestsBatch', requests))
       .then(() => cy.task('flushResults'))
-      .then((outPath) => { cy.log(`Results written to ${outPath}`); });
+      .then((outPath) => { cy.log(`Results written to ${outPath}`); 
+          });
+      });
     });
   });
+});
