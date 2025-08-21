@@ -280,6 +280,3 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
       .then((outPath) => { cy.log(`Results written to ${outPath}`); 
           });
       });
-    });
-  });
-});
