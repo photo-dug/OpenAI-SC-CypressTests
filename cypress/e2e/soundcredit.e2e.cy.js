@@ -179,6 +179,7 @@ it('04 – Project buttons visible', () => {
 
   it('06 – Click track #1 to start playback', () => {
     cy.contains('1').click({ force: true });
+    cy.wait(500);
   });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
@@ -193,7 +194,12 @@ it('04 – Project buttons visible', () => {
     cy.get('body').then(($body) => {
       const el = $body.find('audio').get(0);
       if (el) expect(el.paused).to.eq(false);
-      else cy.task('recordStep', { name: 'audio-element', status: 'warning', note: '<audio> not found; player may be WebAudio/MSE' });
+      if (!el) {
+      cy.task('recordStep', { name: 'audio-element', status: 'warning', note: '<audio> not found; player may use WebAudio/MSE' });
+    return;
+  }
+  expect(el.paused).to.eq(false);
+});
     });
 
     // time should advance if audio tag exists
