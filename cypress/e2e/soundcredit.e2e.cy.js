@@ -344,21 +344,22 @@ it('09 – Progress advances, then pause toggles', () => {
   });
 });
 
-  it('10 – Logout and verify redirected to login', () => {
-    const t0 = Date.now();
-    cy.contains('a, button, [role=button]', /log out|sign out/i, { timeout: 20000 }).click({ force: true });
-    cy.location('pathname', { timeout: 20000 })
-      .should('eq', '/login')
-      .then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
-  });
+// 10 – Logout and verify redirected to login
+it('10 – Logout and verify redirected to login', () => {
+  const t0 = Date.now();
 
-  after(() => {
-    // Flush batched requests from intercept callback, then write results.json
-    cy
-      .then(() => cy.task('recordRequestsBatch', requests))
-      .then(() => cy.task('flushResults'))
-      .then((outPath) => {
-        cy.log(`Results written to ${outPath}`);
-      });
+  // Click the sidebar Logout link (anchor goes to /login)
+  cy.get('a.sidebar-nav-link[href="/login"], .logout-nav a[href="/login"]', { timeout: 20000 })
+    .should('be.visible')
+    .scrollIntoView()
+    .click({ force: true });
+
+  // Verify we’re back on the login page
+  cy.location('pathname', { timeout: 30000 }).should('eq', '/login');
+  cy.get('input[placeholder="Email"], input[name="email"], input[type="email"]', { timeout: 10000 }).should('be.visible');
+  cy.get('input[placeholder="Password"], input[name="password"], input[type="password"]').should('be.visible');
+
+  cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
+    });
   });
 });
