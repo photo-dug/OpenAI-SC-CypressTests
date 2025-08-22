@@ -360,6 +360,7 @@ it('10 – Logout and verify redirected to login', () => {
   cy.get('input[placeholder="Password"], input[name="password"], input[type="password"]').should('be.visible');
 
   cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
+      });
     });
   });
 });
