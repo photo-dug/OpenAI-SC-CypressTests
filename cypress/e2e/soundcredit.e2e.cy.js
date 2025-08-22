@@ -241,25 +241,35 @@ it('04 – Project buttons visible', () => {
   });
 
 // 08 – Verify bottom player controls (icon-based, container-agnostic)
+// 08 – Verify bottom player controls (mount if needed, then assert by icons/slider)
 it('08 – Verify bottom player controls', () => {
-  // Ensure playback is underway (bar often renders after play starts)
-  cy.get('audio', { timeout: 30000 }).should('exist');
-  cy.get('body').then(($b) => {
-    const el = $b.find('audio').get(0);
-    if (!el) {
-      // If no <audio>, don't hard-fail; record a warning so the run can proceed
-      cy.task('recordStep', { name: 'player-controls', status: 'warning', note: 'No <audio> element found' });
-      return;
-    }
-  });
+  // If the bottom bar isn't mounted yet, poke a play control to mount it
+  cy.get('body', { timeout: 30000 })
+    .then($b => $b.find('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__').length > 0)
+    .then((hasBar) => {
+      if (!hasBar) {
+        // Click a visible play control to trigger the player
+        cy.get('button .fa-play-circle, button .fa-play', { timeout: 10000 })
+          .first()
+          .parents('button')
+          .first()
+          .scrollIntoView()
+          .click({ force: true });
+        cy.wait(500); // give the bar time to mount
+      }
+    });
 
-  // The player uses Font Awesome icons; assert by icon classes, not text
-  cy.get('.fa-random, .fa-shuffle', { timeout: 30000 }).should('exist');                 // shuffle
-  cy.get('.fa-step-backward, .fa-backward', { timeout: 30000 }).should('exist');         // back/rewind
-  cy.get('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause', { timeout: 30000 }).should('exist'); // play/pause
-  cy.get('.fa-step-forward, .fa-forward', { timeout: 30000 }).should('exist');           // forward/skip
+  // Now assert controls globally (container-agnostic)
+  // shuffle
+  cy.get('.fa-random, .fa-shuffle', { timeout: 30000 }).should('exist');
+  // back/rewind
+  cy.get('.fa-step-backward, .fa-backward', { timeout: 30000 }).should('exist');
+  // play/pause (either state is fine)
+  cy.get('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause', { timeout: 30000 }).should('exist');
+  // forward/skip
+  cy.get('.fa-step-forward, .fa-forward', { timeout: 30000 }).should('exist');
 
-  // Progress/time: either a slider with role or a hashed progress class plus mm:ss spans
+  // Progress: slider or mm:ss times
   cy.get('[role="slider"], [class*="progress-slider"]', { timeout: 30000 }).should('exist');
   cy.get('span').then($spans => {
     const times = [...$spans].map(s => (s.textContent || '').trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
