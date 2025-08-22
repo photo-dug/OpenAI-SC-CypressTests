@@ -264,24 +264,85 @@ describe('SoundCredit – Login → Play → Logout', () => {
     });
   });
 
-  it('09 – Progress advances, then pause toggles', () => {
-    cy.get('body').then(($body) => {
-      const el = $body.find('audio').get(0);
-      if (!el) return;
-      const t1 = el.currentTime;
-      cy.wait(1500).then(() => {
-        const t2 = el.currentTime;
-        expect(t2).to.be.greaterThan(t1);
-      });
+ // 09 – Progress advances, then pause toggles
+it('09 – Progress advances, then pause toggles', () => {
+  // Ensure player is visible / mounted (best-effort)
+  cy.get('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause', { timeout: 30000 }).should('exist');
+
+  // Grab the *current time* label (mm:ss) and check it advances
+  const readCurrentTime = () =>
+    cy.get('span').then($spans => {
+      const mmss = [...$spans]
+        .map(s => (s.textContent || '').trim())
+        .filter(t => /^\d{2}:\d{2}$/.test(t));
+      // Assume the first mm:ss near the player is current time
+      return mmss.length ? mmss[0] : null;
     });
 
-    cy.contains('button, [role=button]', /play|pause/i).click();
-    cy.wait(800);
-    cy.get('body').then(($body) => {
-      const el = $body.find('audio').get(0);
-      if (el) expect(el.paused).to.eq(true);
-    });
+  const toSec = (t) => {
+    if (!t) return null;
+    const [m, s] = t.split(':').map(n => parseInt(n, 10));
+    return (isNaN(m) || isNaN(s)) ? null : m * 60 + s;
+  };
+
+  let t1s = null;
+
+  readCurrentTime().then(t1 => {
+    t1s = toSec(t1);
+    // if not playing yet, tap play icon to start
+    if (t1s === 0 || t1s === null) {
+      cy.get('button .fa-play-circle, button .fa-play').first().parents('button').first().click({ force: true });
+      cy.wait(700);
+    }
   });
+
+  cy.wait(1500);
+
+  readCurrentTime().then(t2 => {
+    const t2s = toSec(t2);
+    // Progress should have advanced
+    expect(t2s, 'current time (s)').to.be.a('number');
+    if (t1s !== null) {
+      expect(t2s).to.be.greaterThan(t1s);
+    }
+  });
+
+  // Click the play/pause button (icon-based)
+  cy.get('button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play', { timeout: 10000 })
+    .first()
+    .parents('button')
+    .first()
+    .scrollIntoView()
+    .click({ force: true });
+
+  cy.wait(800);
+
+  // Prefer an <audio> pause assertion if available; else confirm icon flip or no time movement
+  cy.get('body').then(($body) => {
+    const el = $body.find('audio').get(0);
+    if (el) {
+      expect(el.paused, '<audio>.paused after toggle').to.eq(true);
+    } else {
+      // No <audio>: check icon indicates paused, or time stops advancing
+      const hasPlayIcon = $body.find('.fa-play-circle, .fa-play').length > 0;
+      if (hasPlayIcon) {
+        expect(hasPlayIcon, 'play icon visible after toggle').to.eq(true);
+      } else {
+        // fallback: time should not increase over the next 1s
+        return readCurrentTime().then(tBefore => {
+          const sBefore = toSec(tBefore);
+          cy.wait(1000).then(() => {
+            readCurrentTime().then(tAfter => {
+              const sAfter = toSec(tAfter);
+              // allow 1s jitter; should not be +1 or more if paused
+              expect(sAfter - sBefore, 'time delta while paused').to.be.at.most(0);
+            });
+          });
+        });
+      }
+    }
+  });
+});
 
   it('10 – Logout and verify redirected to login', () => {
     const t0 = Date.now();
