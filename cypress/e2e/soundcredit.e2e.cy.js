@@ -240,14 +240,29 @@ it('04 – Project buttons visible', () => {
       });
   });
 
-  it('08 – Verify bottom player controls', () => {
-    cy.get('body').within(() => {
-      cy.contains(/shuffle/i).should('exist');
-      cy.contains(/rewind|back/i).should('exist');
-      cy.contains(/play|pause/i).should('exist');
-      cy.contains(/forward|skip/i).should('exist');
+// 08 – Verify bottom player controls (icon-based)
+it('08 – Verify bottom player controls', () => {
+  // make sure the audio bar is rendered
+  cy.get('[class*="AudioPlayerBar_audio-player-bar"]', { timeout: 30000 })
+    .should('be.visible')
+    .within(() => {
+      // shuffle
+      cy.get('.fa-random').should('exist');
+      // back/rewind
+      cy.get('.fa-step-backward').should('exist');
+      // play/pause (either state is fine)
+      cy.get('.fa-play-circle, .fa-pause-circle').should('exist');
+      // forward/skip
+      cy.get('.fa-step-forward').should('exist');
+
+      // progress section present (slider + times)
+      cy.get('[role="slider"]').should('exist');
+      cy.get('span').then($spans => {
+        const times = [...$spans].map(s => s.textContent?.trim()).filter(t => /^\d{2}:\d{2}$/.test(t || ''));
+        expect(times.length, 'progress times (current/total)').to.be.greaterThan(0);
+      });
     });
-  });
+});
 
   it('09 – Progress advances, then pause toggles', () => {
     cy.get('body').then(($body) => {
