@@ -264,6 +264,7 @@ it('08 – Verify bottom player controls', () => {
         cy.wait(500); // give the bar time to mount
       }
     });
+  });
 
   // Now assert controls globally (container-agnostic)
   // shuffle
