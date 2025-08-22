@@ -362,7 +362,3 @@ it('10 – Logout and verify redirected to login', () => {
   cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
       });
     });
-  });
-});
-});
-});
