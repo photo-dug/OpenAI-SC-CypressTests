@@ -109,8 +109,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
     // Prefer the LEFT LIST (sidebar) – click the <a> that contains our title span
     cy.get('.playlist-bottom-submenu', { timeout: 30000 }).should('exist'); // ensure sidebar list is rendered
 
-    const title = 'The Astronauts - Surf Party';
-
     // 2) Match the span text then climb to its <a>
     cy.contains('.playlist-bottom-submenu a[href^="/playlists/"] span', new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i'), { timeout: 30000 })
       .parents('a[href^="/playlists/"]')
