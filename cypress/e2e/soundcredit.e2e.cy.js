@@ -97,39 +97,37 @@ describe('SoundCredit – Login → Play → Logout', () => {
     const title = 'The Astronauts - Surf Party';
 
     // 1) If we're on Home, go to Projects (/playlists) via the left sidebar
-    cy.location('pathname', { timeout: 20000 }).then((p) => {
+    cy.location('pathname', { timeout: 30000 }).then((p) => {
       if (!/^\/playlists(\/|$)/.test(p)) {
-        cy.get('a.sidebar-nav-link[href="/playlists"]', { timeout: 20000 })
+        cy.get('a.sidebar-nav-link[href="/playlists/*"]', { timeout: 30000 })
           .should('be.visible')
           .click();
         cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists(\/|$)/);
       }
     });
 
-    // 2) Prefer the LEFT LIST if it exists (it navigates to /playlists/{id})
-    cy.get('body', { timeout: 20000 }).then(($b) => {
-      const links = $b.find('.playlist-bottom-submenu a[href^="/playlists/"]').toArray();
-      const match = links.find((a) => (a.innerText || '').trim().toLowerCase() === title.toLowerCase());
-      if (match) {
-        cy.wrap(match).scrollIntoView().click({ force: true });
-        return;
-      }
+    // Prefer the LEFT LIST (sidebar) – click the <a> that contains our title span
+    cy.get('.playlist-bottom-submenu', { timeout: 30000 }).should('exist'); // ensure sidebar list is rendered
 
-      // 3) Fallback: click the GRID CARD for the title
-      cy.contains('.project-preview-card .project-title', title, { timeout: 20000 })
-        .should('be.visible')
-        .parents('.project-preview-card')
-        .then(($card) => {
-          const overlaySel =
-            '.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container';
-          if ($card.find(overlaySel).length) {
-            cy.wrap($card).find(overlaySel).first().scrollIntoView().click({ force: true });
-          } else {
-            cy.wrap($card).find('a,button,[role="link"],[role="button"]').first().scrollIntoView().click({ force: true });
-          }
-        });
+    const title = 'The Astronauts - Surf Party';
+
+    // 2) Match the span text then climb to its <a>
+    cy.contains('.playlist-bottom-submenu a[href^="/playlists/"] span', new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i'), { timeout: 30000 })
+      .parents('a[href^="/playlists/"]')
+      .first()
+      .scrollIntoView()
+      .click({ force: true });
+
+    // 2) Fallback if the exact-span match didn’t resolve (handles extra whitespace/casing)
+    cy.location('pathname', { timeout: 1000 }).then((p) => {
+      if (!/^\/playlists\/\d+/.test(p)) {
+        cy.get('.playlist-bottom-submenu a[href^="/playlists/"]', { timeout: 10000 }).then(($as) => {
+          const match = [...$as].find(a => (a.innerText || '').toLowerCase().includes(title.toLowerCase()));
+          expect(match, `sidebar link for "${title}"`).to.exist;
+          cy.wrap(match).scrollIntoView().click({ force: true });
     });
-
+  }
+});
     // 4) Confirm we landed on the playlist page
     cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists\/\d+/);
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 }).should('be.visible');
