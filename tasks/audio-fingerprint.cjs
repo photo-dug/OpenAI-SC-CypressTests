@@ -1,8 +1,8 @@
-import ffmpegPath from 'ffmpeg-static';
-import { spawn } from 'node:child_process';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import Meyda from 'meyda';
+const ffmpegPath = require('ffmpeg-static');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const Meyda = require('meyda');
 
 let cachedRef = null;
 
@@ -14,22 +14,19 @@ function pcmS16ToFloat32(buf) {
   }
   return out;
 }
-
 function average(rows) {
   if (!rows.length) return [];
   const sum = new Array(rows[0].length).fill(0);
   for (const r of rows) r.forEach((v, i) => (sum[i] += v));
   return sum.map((v) => v / rows.length);
 }
-
 function cosine(a, b) {
-  const dot = a.reduce((s, v, i) => s + v * (b[i] || 0), 0);
-  const na = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
-  const nb = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
+  const dot = (a || []).reduce((s, v, i) => s + v * ((b || [])[i] || 0), 0);
+  const na = Math.sqrt((a || []).reduce((s, v) => s + v * v, 0));
+  const nb = Math.sqrt((b || []).reduce((s, v) => s + v * v, 0));
   return na && nb ? dot / (na * nb) : 0;
 }
-
-async function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
+function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const args = ['-ss', '0', '-t', String(seconds), '-i', input, '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 's16le', '-'];
     const ff = spawn(ffmpegPath, args);
@@ -42,7 +39,6 @@ async function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     });
   });
 }
-
 function fingerprintFromPCM(pcm, sampleRate = 16000) {
   const frameSize = 1024;
   const hop = 512;
@@ -55,20 +51,27 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
   }
   return average(features);
 }
-
-export function registerAudioTasks(on, config) {
+function registerAudioTasks(on, config) {
   on('task', {
     async referenceFingerprint() {
-      if (cachedRef) return cachedRef;
-      const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-      if (!fs.existsSync(p)) throw new Error(`Missing reference mp3 at ${p}`);
-      const pcm = await decodeToPCMFromUrl(p);
-      cachedRef = fingerprintFromPCM(pcm);
-      return cachedRef;
+      try {
+        if (cachedRef) return cachedRef;
+        const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+        if (!fs.existsSync(p)) return null;
+        const pcm = await decodeToPCMFromUrl(p);
+        cachedRef = fingerprintFromPCM(pcm);
+        return cachedRef;
+      } catch {
+        return null;
+      }
     },
     async fingerprintAudioFromUrl(url) {
-      const pcm = await decodeToPCMFromUrl(url);
-      return fingerprintFromPCM(pcm);
+      try {
+        const pcm = await decodeToPCMFromUrl(url);
+        return fingerprintFromPCM(pcm);
+      } catch {
+        return null;
+      }
     },
     compareFingerprints({ a, b, threshold = 0.9 }) {
       const score = cosine(a, b);
@@ -76,3 +79,4 @@ export function registerAudioTasks(on, config) {
     }
   });
 }
+module.exports = { registerAudioTasks };

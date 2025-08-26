@@ -22,7 +22,7 @@ function addDir(dir, base = '') {
   });
 }
 
-['package.json', 'cypress.config.mjs', 'README.md'].forEach((f) => {
+['package.json', 'package-lock.json', 'cypress.config.cjs', 'README.md'].forEach((f) => {
   if (fs.existsSync(f)) archive.file(f, { name: f });
 });
 
