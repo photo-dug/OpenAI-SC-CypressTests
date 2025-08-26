@@ -99,7 +99,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
     // 1) If we're on Home, go to Projects (/playlists) via the left sidebar
     cy.location('pathname', { timeout: 30000 }).then((p) => {
       if (!/^\/playlists(\/|$)/.test(p)) {
-        cy.get('a.sidebar-nav-link[href="/playlists/*"]', { timeout: 30000 })
+        cy.get('a.sidebar-nav-link[href="/playlists"]', { timeout: 30000 })
           .should('be.visible')
           .click();
         cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists(\/|$)/);
