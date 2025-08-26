@@ -102,7 +102,9 @@ describe('SoundCredit – Login → Play → Logout', () => {
         cy.get('a.sidebar-nav-link[href="/playlists"]', { timeout: 20000 })
           .should('be.visible')
           .click();
-        cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists(\/|$)/);
+        // Accepts /playlists OR /playlists/<id>, regardless of trailing slash, query or hash
+        cy.url({ timeout: 30000 }).should('match', /\/playlists(?:\/\d+)?(?:[/?#]|$)/);
+
       }
     });
 
@@ -131,18 +133,17 @@ describe('SoundCredit – Login → Play → Logout', () => {
     });
 
     // 4) Confirm we landed on the playlist page
-    cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists\/\d+/);
+    cy.url({ timeout: 30000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 }).should('be.visible');
     cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 30000 }).should('be.visible');
-
+    cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/);
     cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
   });
 
   // 04 – Project buttons visible. Play, Add, Open Link, Details, Project Link
   it('04 – Project buttons visible', () => {
     // we should already be on /playlists/{id}
-    cy.location('pathname', { timeout: 30000 }).should('match', /^\/playlists\/\d+/);
-
+    cy.url({ timeout: 30000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
     // OPEN LINK
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 30000 }).should('be.visible');
     // DETAILS
@@ -153,7 +154,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
     cy.get('button .fa-link', { timeout: 15000 }).should('exist');
     // PLAY (icon)
     cy.get('button .fa-play', { timeout: 15000 }).should('exist');
-
     // OPTIONAL Copy: warn if missing
     cy.get('body').then(($b) => {
       const hasCopy = $b.find('button .fa-copy, button:contains("Copy")').length > 0;
