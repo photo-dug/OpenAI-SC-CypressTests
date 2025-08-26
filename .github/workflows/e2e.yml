@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,22 +17,40 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install deps
-        run: npm ci
+        run: npm i
+
+      - name: Diagnostics
+        run: |
+          node -v
+          npm -v
+          npx cypress --version || true
+          npx cypress info || true
+          ls -la cypress/e2e || true
+
+      - name: Ensure artifact dirs exist
+        run: mkdir -p cypress/reports cypress/screenshots cypress/videos
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
           browser: chrome
+          config-file: cypress.config.cjs
+          spec: cypress/e2e/soundcredit.e2e.cy.js
           build: echo "skip build"
           config: baseUrl=https://portal.soundcredit.com
         env:
+          # Secrets
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
+          CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
+          CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
+          # Controls
           FINGERPRINT_STRICT: 'false'
+          SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
 
       - name: Upload Cypress artifacts
         if: always()
@@ -40,15 +59,18 @@ jobs:
           name: cypress-artifacts
           path: |
             cypress/reports/**
+            cypress/reports/.jsons/**
             cypress/screenshots/**
             cypress/videos/**
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Create ZIP package
+        if: always()
         run: npm run zip
 
       - name: Upload ZIP
-        if: always()
+        if: always() && hashFiles('soundcredit-e2e.zip') != ''
         uses: actions/upload-artifact@v4
         with:
           name: soundcredit-e2e.zip
