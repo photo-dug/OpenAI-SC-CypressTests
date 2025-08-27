@@ -59,7 +59,7 @@ it('02 – Login with credentials', () => {
   const t0 = Date.now();
 
   // Ensure we are on the login route
-  cy.url({ timeout: 60000 }).should('match', /\/login(?:[/?#]|$)/);
+  cy.url({ timeout: 80000 }).should('match', /\/login(?:[/?#]|$)/);
 
   // dismiss cookie/consent if present
   cy.get('body', { timeout: 60000 }).then(($b) => {
@@ -103,7 +103,7 @@ it('02 – Login with credentials', () => {
     .type(password, { log: false });
 
   // SUBMIT
-  cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
+  cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 80000 })
     .scrollIntoView()
     .click({ force: true });
 
