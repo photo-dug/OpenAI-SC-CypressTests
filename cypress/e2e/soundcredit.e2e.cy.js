@@ -380,5 +380,6 @@ it('10 – Logout and verify redirected to login', () => {
   cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
 
   cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
+  });
 });
 
