@@ -119,44 +119,70 @@ it('02 – Login with credentials', () => {
 it('03 – Open project "The Astronauts - Surf Party"', () => {
   const t0 = Date.now();
   const title = 'The Astronauts - Surf Party';
+  const titleRe = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
 
-  // If we somehow got bounced to /login in Cloud, retry submit quickly
-  cy.url({ timeout: 60000 }).then((u) => {
+  // If Cloud bounced us back to /login, retry submit quickly
+  cy.url({ timeout: 10000 }).then((u) => {
     if (/\/login(?:[/?#]|$)/.test(u)) {
-      cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 30000 })
+      cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 20000 })
         .scrollIntoView()
         .click({ force: true });
-      cy.contains(/home|projects|dashboard|library/i, { timeout: 80000 }).should('be.visible');
+      cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should('be.visible');
     }
   });
 
-  // On HOME: find the grid card by its .project-title
-  cy.contains('.project-preview-card .project-title', title, { timeout: 80000 })
+  // A) HOME GRID: click the overlay PLAY on the correct card to start playback
+  cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
     .should('be.visible')
     .parents('.project-preview-card')
     .then(($card) => {
-      // 1) Click overlay PLAY to start the track (this does NOT navigate)
       const overlaySel = '.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container';
       if ($card.find(overlaySel).length) {
         cy.wrap($card).find(overlaySel).first().scrollIntoView().click({ force: true });
       } else {
-        // fallback: any clickable within the card
         cy.wrap($card).find('a,button,[role="link"],[role="button"]').first().scrollIntoView().click({ force: true });
       }
     });
 
-  // 2) After playback starts, use the BOTTOM PLAYER BAR link to open the playlist
-  //   (This anchor is stable: <a href="/playlists/<id>"> around the artwork)
-  cy.get('div[class*="AudioPlayerBar_left-side"] a[href^="/playlists/"]', { timeout: 80000 })
+  // B) BOTTOM BAR: click the artwork link that navigates to /playlists/<id>
+  // (more robust than class names: look for an anchor with an artwork image)
+  cy.get('a[href^="/playlists/"] img[alt*="artwork" i]', { timeout: 15000 })
+    .first()
+    .parents('a[href^="/playlists/"]')
     .first()
     .scrollIntoView()
-    .click({ force: true });
+    .click({ force: true })
+    .then(() => {
+      // If we still didn't navigate, try the Projects sidebar → left list
+      cy.url({ timeout: 5000 }).then((u) => {
+        if (!/\/playlists\/\d+(?:[/?#]|$)/.test(u)) {
+          // Go to Projects
+          cy.get('a[href="/playlists"]', { timeout: 30000 })
+            .filter(':visible')
+            .first()
+            .scrollIntoView()
+            .click({ force: true });
 
-  // 3) Confirm we’re on the playlist by UI landmark (don’t only rely on URL immediately)
-  cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 80000 }).should('be.visible');
-  cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 80000 }).should('be.visible');
+          // Use the left list item with our title span
+          cy.get('.playlist-bottom-submenu', { timeout: 30000 }).should('exist');
+          cy.contains(
+            '.playlist-bottom-submenu a[href^="/playlists/"] span',
+            titleRe,
+            { timeout: 30000 }
+          )
+            .parents('a[href^="/playlists/"]')
+            .first()
+            .scrollIntoView()
+            .click({ force: true });
+        }
+      });
+    });
 
-  // Optional: now the URL should also be /playlists/<id> (allow query/hash)
+  // C) Confirm the PLAYLIST toolbar is present (UI landmark first)
+  cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
+  cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
+
+  // Optional URL check after UI is ready
   cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
 
   cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
@@ -168,10 +194,10 @@ it('04 – Project buttons visible', () => {
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
 
-  // Optional: URL assertion after UI is ready (more tolerant)
+  // Optional: accept URL after UI is ready
   cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/);
 
-  // …then your existing icon/text checks for Play, Add, Project Link, etc.
+  // (your existing icon/text checks can follow)
 });
 
   it('05 – At least one audio file listed', () => {
@@ -277,49 +303,29 @@ it('04 – Project buttons visible', () => {
 
  // 09 – Progress advances, then pause toggles
 it('09 – Progress advances, then pause toggles', () => {
-  // Ensure player is visible / mounted (best-effort)
-  cy.get('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause', { timeout: 30000 }).should('exist');
-
-  // Grab the *current time* label (mm:ss) and check it advances
+  // Progress advances first (mm:ss)
   const readCurrentTime = () =>
     cy.get('span').then($spans => {
-      const mmss = [...$spans]
-        .map(s => (s.textContent || '').trim())
-        .filter(t => /^\d{2}:\d{2}$/.test(t));
-      // Assume the first mm:ss near the player is current time
+      const mmss = [...$spans].map(s => (s.textContent || '').trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
       return mmss.length ? mmss[0] : null;
     });
-
   const toSec = (t) => {
-    if (!t) return null;
-    const [m, s] = t.split(':').map(n => parseInt(n, 10));
+    if (!t) return null; const [m, s] = t.split(':').map(n => parseInt(n, 10));
     return (isNaN(m) || isNaN(s)) ? null : m * 60 + s;
   };
 
   let t1s = null;
-
-  readCurrentTime().then(t1 => {
-    t1s = toSec(t1);
-    // if not playing yet, tap play icon to start
-    if (t1s === 0 || t1s === null) {
-      cy.get('button .fa-play-circle, button .fa-play').first().parents('button').first().click({ force: true });
-      cy.wait(700);
-    }
-  });
-
+  readCurrentTime().then(t1 => { t1s = toSec(t1); });
   cy.wait(1500);
-
   readCurrentTime().then(t2 => {
     const t2s = toSec(t2);
-    // Progress should have advanced
     expect(t2s, 'current time (s)').to.be.a('number');
-    if (t1s !== null) {
-      expect(t2s).to.be.greaterThan(t1s);
-    }
+    if (t1s !== null) expect(t2s).to.be.greaterThan(t1s);
   });
 
-  // Click the play/pause button (icon-based)
-  cy.get('button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play', { timeout: 10000 })
+  // Click the PAUSE control specifically (prefer the pause icon if playing)
+  cy.get('button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play', { timeout: 15000 })
+    .filter(':visible')
     .first()
     .parents('button')
     .first()
@@ -328,24 +334,20 @@ it('09 – Progress advances, then pause toggles', () => {
 
   cy.wait(800);
 
-  // Prefer an <audio> pause assertion if available; else confirm icon flip or no time movement
+  // Prefer <audio>.paused when available; otherwise confirm icon flip or that time stops
   cy.get('body').then(($body) => {
     const el = $body.find('audio').get(0);
     if (el) {
       expect(el.paused, '<audio>.paused after toggle').to.eq(true);
     } else {
-      // No <audio>: check icon indicates paused, or time stops advancing
       const hasPlayIcon = $body.find('.fa-play-circle, .fa-play').length > 0;
-      if (hasPlayIcon) {
-        expect(hasPlayIcon, 'play icon visible after toggle').to.eq(true);
-      } else {
-        // fallback: time should not increase over the next 1s
+      if (hasPlayIcon) expect(hasPlayIcon, 'play icon visible after toggle').to.eq(true);
+      else {
         return readCurrentTime().then(tBefore => {
           const sBefore = toSec(tBefore);
           cy.wait(1000).then(() => {
             readCurrentTime().then(tAfter => {
               const sAfter = toSec(tAfter);
-              // allow 1s jitter; should not be +1 or more if paused
               expect(sAfter - sBefore, 'time delta while paused').to.be.at.most(0);
             });
           });
