@@ -121,83 +121,78 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
   const title = 'The Astronauts - Surf Party';
   const titleRe = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
 
-  // If Cloud bounced us back to /login, retry submit quickly
+  // If bounced back to /login in Cloud, retry submit once
   cy.url({ timeout: 10000 }).then((u) => {
     if (/\/login(?:[/?#]|$)/.test(u)) {
       cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 20000 })
-        .scrollIntoView()
-        .click({ force: true });
+        .scrollIntoView().click({ force: true });
       cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should('be.visible');
     }
   });
 
-  // A) HOME GRID: click the overlay PLAY on the correct card to start playback
-  cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
-    .should('be.visible')
-    .parents('.project-preview-card')
-    .then(($card) => {
-      const overlaySel = '.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container';
-      if ($card.find(overlaySel).length) {
-        cy.wrap($card).find(overlaySel).first().scrollIntoView().click({ force: true });
-      } else {
-        cy.wrap($card).find('a,button,[role="link"],[role="button"]').first().scrollIntoView().click({ force: true });
-      }
-    });
+  cy.url({ timeout: 60000 }).then((u) => {
+    if (/\/home(?:[/?#]|$)/.test(u)) {
+      // HOME: start playback on the correct card
+      cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
+        .should('be.visible')
+        .parents('.project-preview-card')
+        .then(($card) => {
+          const overlaySel = '.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container';
+          if ($card.find(overlaySel).length) {
+            cy.wrap($card).find(overlaySel).first().scrollIntoView().click({ force: true });
+          } else {
+            cy.wrap($card).find('a,button,[role="link"],[role="button"]').first().scrollIntoView().click({ force: true });
+          }
+        });
 
-  // B) BOTTOM BAR: click the artwork link that navigates to /playlists/<id>
-  // (more robust than class names: look for an anchor with an artwork image)
-  cy.get('a[href^="/playlists/"] img[alt*="artwork" i]', { timeout: 15000 })
-    .first()
-    .parents('a[href^="/playlists/"]')
-    .first()
-    .scrollIntoView()
-    .click({ force: true })
-    .then(() => {
-      // If we still didn't navigate, try the Projects sidebar → left list
-      cy.url({ timeout: 5000 }).then((u) => {
-        if (!/\/playlists\/\d+(?:[/?#]|$)/.test(u)) {
-          // Go to Projects
-          cy.get('a[href="/playlists"]', { timeout: 30000 })
-            .filter(':visible')
-            .first()
-            .scrollIntoView()
-            .click({ force: true });
+      // Try the bottom player bar: any anchor to /playlists/<id> (no alt/text assumptions)
+      cy.wait(500);
+      cy.get('a[href^="/playlists/"]', { timeout: 15000 })
+        .filter((_, a) => /\d+/.test(a.getAttribute('href') || ''))
+        .first()
+        .scrollIntoView()
+        .click({ force: true })
+        .then(() => { /* fall through to UI landmark check */ })
+        .catch(() => { /* fallback below */ });
+    } else {
+      // PROJECTS (/playlists): use the left list by title span
+      cy.get('.playlist-bottom-submenu', { timeout: 60000 }).should('exist');
+      cy.contains('.playlist-bottom-submenu a[href^="/playlists/"] span', titleRe, { timeout: 60000 })
+        .parents('a[href^="/playlists/"]')
+        .first()
+        .scrollIntoView()
+        .click({ force: true });
+    }
+  });
 
-          // Use the left list item with our title span
-          cy.get('.playlist-bottom-submenu', { timeout: 30000 }).should('exist');
-          cy.contains(
-            '.playlist-bottom-submenu a[href^="/playlists/"] span',
-            titleRe,
-            { timeout: 30000 }
-          )
-            .parents('a[href^="/playlists/"]')
-            .first()
-            .scrollIntoView()
-            .click({ force: true });
-        }
-      });
-    });
+  // If still not on a playlist detail, go to Projects → click left list item (last resort)
+  cy.url({ timeout: 3000 }).then((u) => {
+    if (!/\/playlists\/\d+(?:[/?#]|$)/.test(u)) {
+      cy.get('a[href="/playlists"]', { timeout: 60000 }).filter(':visible').first().click({ force: true });
+      cy.get('.playlist-bottom-submenu', { timeout: 60000 }).should('exist');
+      cy.contains('.playlist-bottom-submenu a[href^="/playlists/"] span', titleRe, { timeout: 60000 })
+        .parents('a[href^="/playlists/"]')
+        .first()
+        .scrollIntoView()
+        .click({ force: true });
+    }
+  });
 
-  // C) Confirm the PLAYLIST toolbar is present (UI landmark first)
+  // UI landmark first (don’t rely on URL timing)
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
 
-  // Optional URL check after UI is ready
+  // Optional: URL after UI is ready
   cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
 
   cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
 });
 
-// 04 – Project buttons visible
 it('04 – Project buttons visible', () => {
-  // UI landmark proves we’re on the playlist page
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
-
-  // Optional: accept URL after UI is ready
-  cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/);
-
-  // (your existing icon/text checks can follow)
+  cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/); // optional but nice to have
+  // ...rest of your checks (Add, link icon, play icon)...
 });
 
   it('05 – At least one audio file listed', () => {
