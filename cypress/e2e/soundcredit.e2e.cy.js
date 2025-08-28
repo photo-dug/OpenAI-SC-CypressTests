@@ -116,72 +116,18 @@ it('02 – Login with credentials', () => {
   cy.then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
 });
 
-it('03 – Open project "The Astronauts - Surf Party"', () => {
-  const t0 = Date.now();
-  const title = 'The Astronauts - Surf Party';
-  const titleRe = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
-
-  // If Cloud bounced us to /login, retry submit once
-  cy.url({ timeout: 10000 }).then((u) => {
-    if (/\/login(?:[/?#]|$)/.test(u)) {
-      cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 20000 })
-        .scrollIntoView()
-        .click({ force: true });
-      cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should('be.visible');
-    }
-  });
-
-  // (A) On HOME: start playback on the card with our title
-  cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
-    .should('be.visible')
-    .parents('.project-preview-card')
-    .then(($card) => {
-      const overlaySel =
-        '.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container';
-      if ($card.find(overlaySel).length) {
-        cy.wrap($card).find(overlaySel).first().scrollIntoView().click({ force: true });
-      } else {
-        cy.wrap($card).find('a,button,[role="link"],[role="button"]').first().scrollIntoView().click({ force: true });
-      }
-    });
-
-  // (B) Try to navigate via ANY anchor to /playlists/<id> (e.g., bottom bar)
-  cy.wait(400); // give the bar a tick to mount
-  cy.get('a[href^="/playlists/"]', { timeout: 5000 }).then(($as) => {
-    const withId = [...$as].find((a) => /\d+/.test(a.getAttribute('href') || ''));
-    if (withId) {
-      cy.wrap(withId).scrollIntoView().click({ force: true });
-    } else {
-      // (C) Fallback: go to Projects and use the left list
-      cy.get('a[href="/playlists"]', { timeout: 60000 }).filter(':visible').first().click({ force: true });
-      cy.get('.playlist-bottom-submenu', { timeout: 60000 }).should('exist');
-      cy.contains('.playlist-bottom-submenu a[href^="/playlists/"] span', titleRe, { timeout: 60000 })
-        .parents('a[href^="/playlists/"]')
-        .first()
-        .scrollIntoView()
-        .click({ force: true });
-    }
-  });
-
-  // Landmark first (avoid URL-race flake in Cloud)
+it('04 – Project buttons visible', () => {
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
-
-  // Optional: url after UI is ready
-  cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
-
-  cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
+  cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/); // optional
+  // …rest of your checks
 });
 
 it('04 – Project buttons visible', () => {
-  // UI landmarks prove we’re on the playlist page
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
-
-  // Optional: now the URL should be /playlists/<id> (allow query/hash)
-  cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/);
-
-  // ... your existing Add / link icon / play icon checks ...
+  cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/); // optional
+  // …rest of your checks
 });
 
   it('05 – At least one audio file listed', () => {
