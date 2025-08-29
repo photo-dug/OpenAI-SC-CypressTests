@@ -29,7 +29,7 @@ const goToProjects = () => {
 
 const openPlaylistByTitle = (title) => {
   const re = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
-return cy.get(''#root .playlist-bottom-submenu a[href^="/playlists/“]’, { timeout: 60000 }).then(($b) => {
+return cy.get('#root .playlist-bottom-submenu a[href^="/playlists/“]’, { timeout: 60000 }).then(($b) => {
   // Prefer LEFT LIST (sidebar)
     const span = [...$b.find('.playlist-bottom-submenu a[href^="/playlists/"] span')]
       .find((el) => re.test((el.textContent || '').trim()));
