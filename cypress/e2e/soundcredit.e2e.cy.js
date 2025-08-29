@@ -1,6 +1,42 @@
 // cypress/e2e/soundcredit.e2e.cy.js
 const username = Cypress.env('SC_USERNAME') || '';
 const password = Cypress.env('SC_PASSWORD') || '';
+const login = () => {
+  cy.visit('/login');
+  // email
+  cy.get(
+    [
+      'input[type="email"]',
+      'input[name="email"]',
+      'input[placeholder*="mail" i]',
+      'input[id*="email" i]',
+      '.username-container input'
+    ].join(', '),
+    { timeout: 60000 }
+  ).filter(':visible').first().clear().type(username, { delay: 20 });
+
+  // password
+  cy.get(
+    [
+      'input[type="password"]',
+      'input[name="password"]',
+      'input[placeholder*="password" i]',
+      'input[id*="password" i]'
+    ].join(', '),
+    { timeout: 60000 }
+  ).filter(':visible').first().clear().type(password, { log: false });
+
+  // submit
+  cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
+    .scrollIntoView().click({ force: true });
+
+  // post-login landmark (accept /home or /playlists)
+  cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should('be.visible');
+  cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/);
+};
+
+const ensureLoggedIn = () =>
+  cy.session([username, password], login, { cacheAcrossSpecs: true });
 
 // collect audio request URLs + batched request logs across the whole spec
 let audioUrls = [];
@@ -29,7 +65,7 @@ const goToProjects = () => {
 
 const openPlaylistByTitle = (title) => {
   const re = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
-return cy.get('#root > div.wrapper > div > div.content-wrapper.dark-page-content-wrapper > div > div > div > div.page-container > div > div.bg-dark-credit.animate__animated.animate__fadeInLeft.animate__fast.p-0.h-100.col-xl-2.col-lg-3.col-3 > div > div.playlist-bottom-submenu > span > a:nth-child(1) > div > button > div > span’, { timeout: 60000 }).then(($b) => {
+return cy.get('body', { timeout: 60000 }).then(($b) => {
   // Prefer LEFT LIST (sidebar)
     const span = [...$b.find('.playlist-bottom-submenu a[href^="/playlists/"] span')]
       .find((el) => re.test((el.textContent || '').trim()));
@@ -107,6 +143,9 @@ describe('SoundCredit – Login → Play → Logout', () => {
 
   it('02 – Login with credentials', () => {
     const t0 = Date.now();
+    beforeEach(() => {
+  ensureLoggedIn();
+});
 
     // Ensure login route
     cy.url({ timeout: 60000 }).should('match', /\/login(?:[/?#]|$)/);
@@ -168,6 +207,9 @@ describe('SoundCredit – Login → Play → Logout', () => {
   it('03 – Open project "The Astronauts - Surf Party"', () => {
     const t0 = Date.now();
     const title = 'The Astronauts - Surf Party';
+    beforeEach(() => {
+  ensureLoggedIn();
+});
 
     // If somehow on /login in Cloud, retry submit once
     cy.url({ timeout: 10000 }).then((u) => {
