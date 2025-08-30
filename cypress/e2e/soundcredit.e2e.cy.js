@@ -44,22 +44,26 @@ let requests = [];
 
 /* ---------- helpers ---------- */
 const goToProjects = () => {
-  return cy.url({ timeout: 60000 }).then((u) => {
-    if (/\/playlists(?:[/?#]|$)/.test(u)) return;
-    // Try sidebar "Projects", then footer "View all", else direct visit
-    return cy.get('a[href="/playlists"]', { timeout: 60000 })
-      .filter(':visible')
-      .first()
-      .scrollIntoView()
-      .click({ force: true })
-      .then(() => cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/))
-      .then(null, () =>
-        cy.contains('button, .btn, [role=button]', /view\s*all/i, { timeout: 15000 })
-          .scrollIntoView()
-          .click({ force: true })
-          .then(() => cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/))
-      )
-      .then(null, () => cy.visit('/playlists', { failOnStatusCode: false }));
+  return cy.get('body', { timeout: 60000 }).then(($b) => {
+    // Already there?
+    // (Use cy.url afterwards for the real assertion – we don't want to hard-fail here.)
+    const sidebarLink = $b.find('a[href="/playlists"]')[0];
+    if (sidebarLink) {
+      cy.wrap(sidebarLink).scrollIntoView().click({ force: true });
+      return cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
+    }
+
+    // Footer “View all” button (scan all visible buttons without failing first)
+    const viewAllBtn = [...$b.find('button, .btn, [role=button]')]
+      .find((el) => /view\s*all/i.test((el.textContent || '').trim()));
+    if (viewAllBtn) {
+      cy.wrap(viewAllBtn).scrollIntoView().click({ force: true });
+      return cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
+    }
+
+    // Last resort: direct visit
+    return cy.visit('/playlists', { failOnStatusCode: false })
+      .then(() => cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/));
   });
 };
 
