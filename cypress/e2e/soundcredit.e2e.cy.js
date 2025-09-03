@@ -41,6 +41,8 @@ const ensureLoggedIn = () =>
 // collect audio request URLs + batched request logs across the whole spec
 let audioUrls = [];
 let requests = [];
+// track the URL that started after we click track #1
+let currentAudioUrl = null;
 
 /* ---------- helpers ---------- */
 const goToProjects = () => {
@@ -206,14 +208,38 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
     cy.get('button .fa-play', { timeout: 15000 }).should('exist');
   });
 
-  it('05 – At least one audio file listed', () => {
-    cy.contains('1').should('exist');
-  });
+ // 05 – At least one audio file listed (playlist table)
+it('05 – At least one audio file listed', () => {
+  // the table exists
+  cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
+  // there is at least one track number cell in the table
+  cy.get('.playlist-file-table .playlist-file-table__playlist-track-number > span')
+    .should('have.length.greaterThan', 0);
+});
 
-  it('06 – Click track #1 to start playback', () => {
-    cy.contains('1').click({ force: true });
-    cy.wait(500);
+// 06 – Click track #1 to start playback (table-only)
+it('06 – Click track #1 to start playback', () => {
+  // ensure we are on the playlist tracks table
+  cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
+
+  // remember how many audio requests we had before the click
+  const beforeCount = audioUrls.length;
+
+  // find the track-number cell with exact "1" and click (it turns into a play icon on hover)
+  cy.get('.playlist-file-table .playlist-file-table__playlist-track-number')
+    .contains('span', /^\s*1\s*$/)
+    .scrollIntoView()
+    .trigger('mouseover', { force: true })       // reveals the play button
+    .click({ force: true });
+
+  // give the player a moment to request the new audio, then record the freshest URL
+  cy.wait(750).then(() => {
+    const newOnes = audioUrls.slice(beforeCount);     // URLs captured by cy.intercept since the click
+    if (newOnes.length) {
+      currentAudioUrl = newOnes[newOnes.length - 1];  // use the most recent one
+    }
   });
+});
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
     const skipAudio = Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
@@ -245,34 +271,50 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
     });
 
     // fingerprint chain
-    cy
-      .then(() => {
-        if (!audioUrls.length) {
-          return cy.task('recordStep', { name: 'audio-fingerprint', status: 'warning', note: 'Live audio URL not captured; MSE/DRM suspected' });
-        }
-      })
-      .then(() => {
-        if (!audioUrls.length) return;
-        return cy
-          .task('fingerprintAudioFromUrl', audioUrls[0], { timeout: 120000 })
-          .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
-          .then(({ live, ref }) => {
-            if (!ref || !live || !live.length) {
-              return cy.task('recordStep', { name: 'audio-fingerprint', status: 'warning', note: 'Missing reference or live fingerprint' });
-            }
-            return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
-          })
-          .then((result) => {
-            if (!result || result.pass === undefined) return;
-            const strict = Cypress.env('FINGERPRINT_STRICT') === true || Cypress.env('FINGERPRINT_STRICT') === 'true';
-            if (!result.pass) {
-              if (strict) {
-                expect(result.pass, `Audio similarity score ${result.score?.toFixed?.(3)}`).to.be.true;
-              } else {
-                return cy.task('recordStep', { name: 'audio-fingerprint', status: 'warning', score: result.score });
-              }
-            }
+cy
+  .then(() => {
+    // If we haven't seen any audio at all, warn and stop
+    if (!audioUrls.length && !currentAudioUrl) {
+      return cy.task('recordStep', {
+        name: 'audio-fingerprint',
+        status: 'warning',
+        note: 'Live audio URL not captured; MSE/DRM or no new request after click'
+      });
+    }
+  })
+  .then(() => {
+    const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
+    if (!urlToUse) return; // already warned above
+
+    return cy
+      .task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 })
+      .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
+      .then(({ live, ref }) => {
+        if (!ref || !live || !live.length) {
+          return cy.task('recordStep', {
+            name: 'audio-fingerprint',
+            status: 'warning',
+            note: 'Missing reference or live fingerprint'
           });
+        }
+        return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
+      })
+      .then((result) => {
+        if (!result || result.pass === undefined) return;
+        const strict =
+          Cypress.env('FINGERPRINT_STRICT') === true ||
+          Cypress.env('FINGERPRINT_STRICT') === 'true';
+        if (!result.pass) {
+          if (strict) {
+            expect(result.pass, `Audio similarity score ${result.score?.toFixed?.(3)}`).to.be.true;
+          } else {
+            return cy.task('recordStep', {
+              name: 'audio-fingerprint',
+              status: 'warning',
+              score: result.score
+            });
+          }
+        }
       });
   });
 
