@@ -435,3 +435,4 @@ cy
     .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
 });
+});
