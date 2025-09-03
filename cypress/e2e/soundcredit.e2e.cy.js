@@ -217,28 +217,36 @@ it('05 – At least one audio file listed', () => {
     .should('have.length.greaterThan', 0);
 });
 
-// 06 – Click track #1 to start playback (table-only)
+// 06 – Click track #1 to start playback (in playlist table)
 it('06 – Click track #1 to start playback', () => {
-  // ensure we are on the playlist tracks table
   cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
 
   // remember how many audio requests we had before the click
   const beforeCount = audioUrls.length;
 
-  // find the track-number cell with exact "1" and click (it turns into a play icon on hover)
-  cy.get('.playlist-file-table .playlist-file-table__playlist-track-number')
-    .contains('span', /^\s*1\s*$/)
-    .scrollIntoView()
-    .trigger('mouseover', { force: true })       // reveals the play button
-    .click({ force: true });
+  // Try to find an explicit “1” first; otherwise click the first track-number cell
+  cy.get('.playlist-file-table .playlist-file-table__playlist-track-number', { timeout: 60000 })
+    .then(($cells) => {
+      // Prefer the one whose textContent is exactly "1"
+      const exactOne = [...$cells].find(el => ((el.textContent || '').trim() === '1'));
+      const target = exactOne || $cells[0];
+      expect(target, 'track-number cell to click').to.exist;
 
-  // give the player a moment to request the new audio, then record the freshest URL
-  cy.wait(750).then(() => {
-    const newOnes = audioUrls.slice(beforeCount);     // URLs captured by cy.intercept since the click
-    if (newOnes.length) {
-      currentAudioUrl = newOnes[newOnes.length - 1];  // use the most recent one
-    }
-  });
+      cy.wrap(target)
+        .scrollIntoView()
+        .trigger('mouseover', { force: true }) // reveals play icon on hover
+        .find('.fas.fa-play, .fa-play.mr-2')
+        .first()
+        .click({ force: true });              // the cell itself is clickable
+    })
+    // give the player a moment to request the new audio, then record the freshest URL
+    .then(() => cy.wait(750))
+    .then(() => {
+      const newOnes = audioUrls.slice(beforeCount);
+      if (newOnes.length) {
+        currentAudioUrl = newOnes[newOnes.length - 1]; // most recent audio URL since the click
+      }
+    });
 });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
