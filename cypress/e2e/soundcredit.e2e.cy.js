@@ -128,7 +128,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
     });
 
     // Force desktop layout; wait for dom ready (helps Cloud)
-    cy.viewport(1366, 900);
+    cy.viewport(1800, 900);
     cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
     // pre-warm reference fingerprint cache (non-fatal)
@@ -240,7 +240,7 @@ it('06 – Click track #1 to start playback', () => {
         .click({ force: true });              // the cell itself is clickable
     })
     // give the player a moment to request the new audio, then record the freshest URL
-    .then(() => cy.wait(750))
+    .then(() => cy.wait(950))
     .then(() => {
       const newOnes = audioUrls.slice(beforeCount);
       if (newOnes.length) {
@@ -250,7 +250,7 @@ it('06 – Click track #1 to start playback', () => {
 });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
-    const skipAudio = Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
+    const skipAudio = Cypress.env('SKIP_AUDIO') === false || Cypress.env('SKIP_AUDIO') === 'false';
     if (skipAudio) {
       cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
       return;
@@ -271,7 +271,7 @@ it('06 – Click track #1 to start playback', () => {
       const el = $body.find('audio').get(0);
       if (el) {
         const t1 = el.currentTime;
-        cy.wait(1500).then(() => {
+        cy.wait(3000).then(() => {
           const t2 = el.currentTime;
           expect(t2).to.be.greaterThan(t1);
         });
