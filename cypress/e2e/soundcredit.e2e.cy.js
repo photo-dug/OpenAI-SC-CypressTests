@@ -432,6 +432,7 @@ cy
     cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
 
     cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
+    });
   });
 
   after(() => {
@@ -442,5 +443,4 @@ cy
     .then(() => cy.task('flushResults'))
     .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
-});
 });
