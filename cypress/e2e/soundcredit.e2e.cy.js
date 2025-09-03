@@ -433,7 +433,7 @@ cy
     cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
     cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
     });
-  });  // remove this?
+    // removed }); 
 
   after(() => {
     // Flush batched requests and results in one place
