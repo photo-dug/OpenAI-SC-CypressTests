@@ -325,6 +325,7 @@ cy
         }
       });
   });
+  });
 
   // 08 – Verify bottom player controls (icon-based, container-agnostic)
   it('08 – Verify bottom player controls', () => {
@@ -430,10 +431,9 @@ cy
     cy.url({ timeout: 60000 }).should('match', /\/login(?:[/?#]|$)/);
     cy.get('input[type="email"], input[name="email"], input[placeholder*="mail" i]', { timeout: 10000 }).should('exist');
     cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
-
     cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
     });
-  });
+  });  // remove this?
 
   after(() => {
     // Flush batched requests and results in one place
