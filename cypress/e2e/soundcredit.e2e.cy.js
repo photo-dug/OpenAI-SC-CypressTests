@@ -192,7 +192,7 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
 
   // 04 – Project buttons visible
   it('04 – Project buttons visible', () => {
-    cy.wait(2000); // <-- wait 2s after arriving on playlists
+    cy.wait(3000); // <-- wait 3s after arriving on playlists
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
     cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
 
@@ -241,7 +241,7 @@ it('06 – Click track #1 to start playback', () => {
         .click({ force: true });              // the cell itself is clickable
     })
     // give the player a moment to request the new audio, then record the freshest URL
-    .then(() => cy.wait(950))
+    .then(() => cy.wait(2000))
     .then(() => {
       const newOnes = audioUrls.slice(beforeCount);
       if (newOnes.length) {
