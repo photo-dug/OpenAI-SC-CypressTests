@@ -22,3 +22,6 @@ npm test
 
 ## Packaging
 - Local: `npm run zip` → `soundcredit-e2e.zip` (excludes node_modules and artifacts).
+
+## Variables
+- If audio is still flaky in CI (MSE/DRM, etc.), set a repo variable to skip it temporarily: GitHub → Settings → Variables → Actions → add SKIP_AUDIO=true (false to enable audio check/comparison with reference file. 
