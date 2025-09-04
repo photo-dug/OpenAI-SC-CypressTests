@@ -13,7 +13,7 @@ const login = () => {
       '.username-container input'
     ].join(', '),
     { timeout: 60000 }
-  ).filter(':visible').first().clear().type(username, { delay: 20 });
+  ).filter(':visible').first().clear().type(username, { delay: 60 });
 
   // password
   cy.get(
@@ -178,7 +178,7 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
       .some((el) => /open\s*link/i.test((el.textContent || '').trim()));
     if (!hasToolbar) {
       // Known id for "The Astronauts - Surf Party"
-      cy.visit('/playlists/42765', { failOnStatusCode: false });
+      cy.visit('/playlists/42765', { failOnStatusCode: false }); { delay: 40 });
     }
   });
 
