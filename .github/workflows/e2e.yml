@@ -48,7 +48,7 @@ jobs:
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
           CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
-          # Controls
+          # Controls/Toggles
           FINGERPRINT_STRICT: 'false'
           CYPRESS_SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }} // <-- Change to skip or run the ausio comparison with the reference mp3
 
