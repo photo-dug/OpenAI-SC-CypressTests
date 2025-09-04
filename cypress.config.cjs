@@ -20,7 +20,12 @@ module.exports = defineConfig({
     SC_USERNAME: process.env.SC_USERNAME || process.env.CYPRESS_SC_USERNAME || '',
     SC_PASSWORD: process.env.SC_PASSWORD || process.env.CYPRESS_SC_PASSWORD || '',
     FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
-    SKIP_AUDIO: process.env.SKIP_AUDIO === 'true'
+    FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
+    // accept both SKIP_AUDIO and CYPRESS_SKIP_AUDIO
+    SKIP_AUDIO:
+    (process.env.CYPRESS_SKIP_AUDIO ?? process.env.SKIP_AUDIO ?? 'false')
+}
+
   },
   e2e: {
     baseUrl: 'https://portal.soundcredit.com',
