@@ -153,6 +153,7 @@ it('02 – Login with credentials', () => {
 });
 
 it('03 – Open project "The Astronauts - Surf Party"', () => {
+  cy.wait(2000); // <-- wait 2s after arriving on playlists
   const t0 = Date.now();
   const title = 'The Astronauts - Surf Party';
 
@@ -178,7 +179,7 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
       .some((el) => /open\s*link/i.test((el.textContent || '').trim()));
     if (!hasToolbar) {
       // Known id for "The Astronauts - Surf Party"
-      cy.visit('/playlists/42765', { failOnStatusCode: false }); { delay: 40 });
+      cy.visit('/playlists/42765', { failOnStatusCode: false });
     }
   });
 
@@ -186,12 +187,12 @@ it('03 – Open project "The Astronauts - Surf Party"', () => {
   cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
   cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
   cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
-
   cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
-});
+}); 
 
   // 04 – Project buttons visible
   it('04 – Project buttons visible', () => {
+    cy.wait(2000); // <-- wait 2s after arriving on playlists
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
     cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
 
