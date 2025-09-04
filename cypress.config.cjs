@@ -23,7 +23,7 @@ module.exports = defineConfig({
     FINGERPRINT_STRICT: process.env.FINGERPRINT_STRICT === 'true',
     // accept both SKIP_AUDIO and CYPRESS_SKIP_AUDIO
     SKIP_AUDIO:(process.env.CYPRESS_SKIP_AUDIO ?? process.env.SKIP_AUDIO ?? 'false'),
-}
+},
 
   }),
   e2e: {
