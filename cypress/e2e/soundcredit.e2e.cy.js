@@ -250,7 +250,7 @@ it('06 – Click track #1 to start playback', () => {
 });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
-    const skipAudio = Cypress.env('SKIP_AUDIO') === false || Cypress.env('SKIP_AUDIO') === 'false';
+    const skipAudio = Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
     if (skipAudio) {
       cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
       return;
