@@ -143,6 +143,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
       if (entry) {
         const data = typeof entry.toJSON === 'function' ? entry.toJSON() : entry;
         cy.task('recordNavTiming', data);
+        cy.wait(4000); // <-- wait 4s after arriving on playlists
       }
     });
   });
@@ -153,7 +154,7 @@ it('02 – Login with credentials', () => {
 });
 
 it('03 – Open project "The Astronauts - Surf Party"', () => {
-  cy.wait(3000); // <-- wait 3s after arriving on playlists
+  cy.wait(4000); // <-- wait 4s after arriving on playlists
   const t0 = Date.now();
   const title = 'The Astronauts - Surf Party';
 
