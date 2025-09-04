@@ -25,7 +25,7 @@ module.exports = defineConfig({
     SKIP_AUDIO:(process.env.CYPRESS_SKIP_AUDIO ?? process.env.SKIP_AUDIO ?? 'false'),
 }
 
-  },
+  }),
   e2e: {
     baseUrl: 'https://portal.soundcredit.com',
     video: true,
