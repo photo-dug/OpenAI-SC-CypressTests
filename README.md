@@ -10,6 +10,12 @@ export SC_PASSWORD="<password>"
 # Place the reference MP3 at cypress/fixtures/reference.mp3
 npm test
 ```
+```bash
+CYPRESS_SC_USERNAME="dougross@me.com" \
+CYPRESS_SC_PASSWORD="Gn^8hbr3w" \
+CYPRESS_SKIP_AUDIO=false \
+npx cypress open
+```
 
 ## What it does
 - Logs in → opens project **The Astronauts - Surf Party** → verifies playlist + buttons → plays track #1 → checks audio + player controls → pauses → logs out.
