@@ -25,3 +25,19 @@ npm test
 
 ## Variables
 - If audio is still flaky in CI (MSE/DRM, etc.), set a repo variable to skip it temporarily: GitHub → Settings → Variables → Actions → add SKIP_AUDIO=true (false to enable audio check/comparison with reference file. 
+- To change the skip audio in the Cypress app:
+  - CLI env (recommended): CYPRESS_SKIP_AUDIO=false npx cypress open
+  -For a one-off headless run: CYPRESS_SKIP_AUDIO=false npx cypress run
+  - cypress.env.json (in repo root):
+  {
+  "SKIP_AUDIO": false
+  }
+(Restart the Cypress app after creating/updating this.)
+- Mac Terminal session export:
+  export CYPRESS_SKIP_AUDIO=false
+  npx cypress open
+## Common gotchas
+- Setting repo “Variables” is not enough by itself — you must pass them into the job’s env: (see the YAML snippet above).
+- Cypress only auto-imports env with the CYPRESS_ prefix. That’s why CYPRESS_SKIP_AUDIO works without extra config. If you prefer plain SKIP_AUDIO, keep the env mapping in cypress.config.cjs as shown.
+- Check for a lingering cypress.env.json that still says "SKIP_AUDIO": true.
+- In Cypress Cloud (if you record there), set project env in the Dashboard under Project settings → Environment variables (use CYPRESS_SKIP_AUDIO=false)
