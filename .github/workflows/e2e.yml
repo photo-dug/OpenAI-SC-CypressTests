@@ -50,7 +50,7 @@ jobs:
           CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           # Controls
           FINGERPRINT_STRICT: 'false'
-          SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
+          CYPRESS_SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }} // <-- Change to skip or run the ausio comparison with the reference mp3
 
       - name: Upload Cypress artifacts
         if: always()
