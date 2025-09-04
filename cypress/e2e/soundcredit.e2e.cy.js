@@ -153,7 +153,7 @@ it('02 – Login with credentials', () => {
 });
 
 it('03 – Open project "The Astronauts - Surf Party"', () => {
-  cy.wait(2000); // <-- wait 2s after arriving on playlists
+  cy.wait(3000); // <-- wait 3s after arriving on playlists
   const t0 = Date.now();
   const title = 'The Astronauts - Surf Party';
 
