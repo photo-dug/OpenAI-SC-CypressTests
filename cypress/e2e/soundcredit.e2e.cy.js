@@ -1,8 +1,10 @@
 // cypress/e2e/soundcredit.e2e.cy.js
 const username = Cypress.env('SC_USERNAME') || '';
 const password = Cypress.env('SC_PASSWORD') || '';
+
 const login = () => {
   cy.visit('/login');
+
   // email
   cy.get(
     [
@@ -10,10 +12,14 @@ const login = () => {
       'input[name="email"]',
       'input[placeholder*="mail" i]',
       'input[id*="email" i]',
-      '.username-container input'
+      '.username-container input',
     ].join(', '),
-    { timeout: 60000 }
-  ).filter(':visible').first().clear().type(username, { delay: 60 });
+    { timeout: 60000 },
+  )
+    .filter(':visible')
+    .first()
+    .clear()
+    .type(username, { delay: 60 });
 
   // password
   cy.get(
@@ -21,22 +27,28 @@ const login = () => {
       'input[type="password"]',
       'input[name="password"]',
       'input[placeholder*="password" i]',
-      'input[id*="password" i]'
+      'input[id*="password" i]',
     ].join(', '),
-    { timeout: 60000 }
-  ).filter(':visible').first().clear().type(password, { log: false });
+    { timeout: 60000 },
+  )
+    .filter(':visible')
+    .first()
+    .clear()
+    .type(password, { log: false });
 
   // submit
-  cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
-    .scrollIntoView().click({ force: true });
+  cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, {
+    timeout: 60000,
+  })
+    .scrollIntoView()
+    .click({ force: true });
 
   // post-login landmark (accept /home or /playlists)
   cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should('be.visible');
   cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/);
 };
 
-const ensureLoggedIn = () =>
-  cy.session([username, password], login, { cacheAcrossSpecs: true });
+const ensureLoggedIn = () => cy.session([username, password], login, { cacheAcrossSpecs: true });
 
 // collect audio request URLs + batched request logs across the whole spec
 let audioUrls = [];
@@ -47,54 +59,62 @@ let currentAudioUrl = null;
 /* ---------- helpers ---------- */
 const goToProjects = () => {
   return cy.get('body', { timeout: 60000 }).then(($b) => {
-    // Already there?
-    // (Use cy.url afterwards for the real assertion – we don't want to hard-fail here.)
+    // Sidebar "Projects"
     const sidebarLink = $b.find('a[href="/playlists"]')[0];
     if (sidebarLink) {
       cy.wrap(sidebarLink).scrollIntoView().click({ force: true });
       return cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
     }
 
-    // Footer “View all” button (scan all visible buttons without failing first)
-    const viewAllBtn = [...$b.find('button, .btn, [role=button]')]
-      .find((el) => /view\s*all/i.test((el.textContent || '').trim()));
+    // Footer “View all”
+    const viewAllBtn = [...$b.find('button, .btn, [role=button]')].find((el) =>
+      /view\s*all/i.test((el.textContent || '').trim()),
+    );
     if (viewAllBtn) {
       cy.wrap(viewAllBtn).scrollIntoView().click({ force: true });
       return cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
     }
 
     // Last resort: direct visit
-    return cy.visit('/playlists', { failOnStatusCode: false })
+    return cy
+      .visit('/playlists', { failOnStatusCode: false })
       .then(() => cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/));
   });
 };
 
 const openPlaylistByTitle = (title) => {
   const re = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
-return cy.get('body', { timeout: 60000 }).then(($b) => {
-  // Prefer LEFT LIST (sidebar)
-    const span = [...$b.find('.playlist-bottom-submenu a[href^="/playlists/"] span')]
-      .find((el) => re.test((el.textContent || '').trim()));
+  return cy.get('body', { timeout: 60000 }).then(($b) => {
+    // Prefer LEFT LIST (sidebar)
+    const span = [...$b.find('.playlist-bottom-submenu a[href^="/playlists/"] span')].find((el) =>
+      re.test((el.textContent || '').trim()),
+    );
     if (span) {
       return cy.wrap(span.closest('a[href^="/playlists/"]')).scrollIntoView().click({ force: true });
     }
-    // Fallback: GRID card
-    return cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
+
+    // Fallback: GRID card (wake UI), then click left-list entry
+    return cy
+      .contains('.project-preview-card .project-title', title, { timeout: 60000 })
       .should('be.visible')
       .parents('.project-preview-card')
       .first()
       .within(() =>
-        cy.get('.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container')
+        cy
+          .get(
+            '.project-thumbnail-container .play-button, .project-thumbnail-container button, .project-thumbnail-container',
+          )
           .first()
-          .click({ force: true })
+          .click({ force: true }),
       )
       .then(() => cy.get('.playlist-bottom-submenu', { timeout: 60000 }).should('exist'))
       .then(() =>
-        cy.contains('.playlist-bottom-submenu a[href^="/playlists/"] span', re, { timeout: 60000 })
+        cy
+          .contains('.playlist-bottom-submenu a[href^="/playlists/"] span', re, { timeout: 60000 })
           .parents('a[href^="/playlists/"]')
           .first()
           .scrollIntoView()
-          .click({ force: true })
+          .click({ force: true }),
       );
   });
 };
@@ -143,134 +163,127 @@ describe('SoundCredit – Login → Play → Logout', () => {
       if (entry) {
         const data = typeof entry.toJSON === 'function' ? entry.toJSON() : entry;
         cy.task('recordNavTiming', data);
-        cy.wait(4000); // <-- wait 4s after arriving on playlists
+        cy.wait(4000); // optional settle
       }
     });
   });
 
-it('02 – Login with credentials', () => {
-  const t0 = Date.now();
-  ensureLoggedIn().then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
-});
-
-it('03 – Open project "The Astronauts - Surf Party"', () => {
-  cy.wait(4000); // <-- wait 4s after arriving on playlists
-  const t0 = Date.now();
-  const title = 'The Astronauts - Surf Party';
-
-  // Ensure we’re authenticated and on Projects
-  ensureLoggedIn();
-  cy.url({ timeout: 60000 }).then((u) => {
-    if (!/\/playlists(?:[/?#]|$)/.test(u)) {
-      cy.visit('/playlists', { failOnStatusCode: false });
-    }
+  it('02 – Login with credentials', () => {
+    const t0 = Date.now();
+    ensureLoggedIn().then(() => cy.task('recordAction', { name: 'login', durationMs: Date.now() - t0 }));
   });
 
-  // Click the grid CARD that shows our title (not the overlay play yet)
-  cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
-    .should('be.visible')
-    .parents('.project-preview-card')
-    .first()
-    .scrollIntoView()
-    .click({ force: true });
+  it('03 – Open project "The Astronauts - Surf Party"', () => {
+    cy.wait(4000); // optional settle
+    const t0 = Date.now();
+    const title = 'The Astronauts - Surf Party';
 
-  // If this didn’t land us on the playlist detail (no toolbar yet), navigate directly
-  cy.get('body', { timeout: 8000 }).then(($b) => {
-    const hasToolbar = [...$b.find('button, .btn, [role=button]')]
-      .some((el) => /open\s*link/i.test((el.textContent || '').trim()));
-    if (!hasToolbar) {
-      // Known id for "The Astronauts - Surf Party"
-      cy.visit('/playlists/42765', { failOnStatusCode: false });
-    }
+    // Ensure /playlists
+    ensureLoggedIn();
+    cy.url({ timeout: 60000 }).then((u) => {
+      if (!/\/playlists(?:[/?#]|$)/.test(u)) {
+        cy.visit('/playlists', { failOnStatusCode: false });
+      }
+    });
+
+    // Click the grid card (container) for our title
+    cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
+      .should('be.visible')
+      .parents('.project-preview-card')
+      .first()
+      .scrollIntoView()
+      .click({ force: true });
+
+    // If toolbar didn’t appear, go directly
+    cy.get('body', { timeout: 8000 }).then(($b) => {
+      const hasToolbar = [...$b.find('button, .btn, [role=button]')].some((el) =>
+        /open\s*link/i.test((el.textContent || '').trim()),
+      );
+      if (!hasToolbar) cy.visit('/playlists/42765', { failOnStatusCode: false });
+    });
+
+    // UI landmark then URL
+    cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
+    cy.contains('button, .btn, [role=button]', /details/i, { timeout: 60000 }).should('be.visible');
+    cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
+    cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
   });
-
-  // Now assert the playlist toolbar (UI-first), then (optionally) the URL
-  cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
-  cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
-  cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
-  cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
-}); 
 
   // 04 – Project buttons visible
   it('04 – Project buttons visible', () => {
-    cy.wait(3000); // <-- wait 3s after arriving on playlists
+    cy.wait(3000); // optional settle
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
-    cy.contains('button, .btn, [role=button]', /details/i,   { timeout: 60000 }).should('be.visible');
-
-    // Optional URL check after UI ready
+    cy.contains('button, .btn, [role=button]', /details/i, { timeout: 60000 }).should('be.visible');
     cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/);
 
-    // Add (text)
-    cy.contains('button, .btn, [role=button]', /^\s*add\s*$/i).should('be.visible');
-
-    // Project link (icon)
-    cy.get('button .fa-link', { timeout: 15000 }).should('exist');
-
-    // Play (icon)
-    cy.get('button .fa-play', { timeout: 15000 }).should('exist');
+    cy.contains('button, .btn, [role=button]', /^\s*add\s*$/i).should('be.visible'); // Add
+    cy.get('button .fa-link', { timeout: 15000 }).should('exist'); // Project link (icon)
+    cy.get('button .fa-play', { timeout: 15000 }).should('exist'); // Play (icon)
   });
 
- // 05 – At least one audio file listed (playlist table)
-it('05 – At least one audio file listed', () => {
-  // the table exists
-  cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
-  // there is at least one track number cell in the table
-  cy.get('.playlist-file-table .playlist-file-table__playlist-track-number > span')
-    .should('have.length.greaterThan', 0);
-});
+  // 05 – At least one audio file listed (playlist table)
+  it('05 – At least one audio file listed', () => {
+    cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
+    cy.get('.playlist-file-table .playlist-file-table__playlist-track-number').should(
+      'have.length.greaterThan',
+      0,
+    );
+  });
 
-// 06 – Click track #1 to start playback (in playlist table)
-it('06 – Click track #1 to start playback', () => {
-  cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
+  // 06 – Click track #1 to start playback (playlist table)
+  it('06 – Click track #1 to start playback', () => {
+    cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
 
-  // remember how many audio requests we had before the click
-  const beforeCount = audioUrls.length;
+    // remember how many audio requests we had before the click
+    const beforeCount = audioUrls.length;
 
-  // Try to find an explicit “1” first; otherwise click the first track-number cell
-  cy.get('.playlist-file-table .playlist-file-table__playlist-track-number', { timeout: 60000 })
-    .then(($cells) => {
-      // Prefer the one whose textContent is exactly "1"
-      const exactOne = [...$cells].find(el => ((el.textContent || '').trim() === '1'));
-      const target = exactOne || $cells[0];
-      expect(target, 'track-number cell to click').to.exist;
+    cy.get('.playlist-file-table .playlist-file-table__playlist-track-number', { timeout: 60000 })
+      .then(($cells) => {
+        // Prefer the cell whose text is exactly "1"; else first cell
+        const exactOne = [...$cells].find((el) => ((el.textContent || '').trim() === '1'));
+        const target = exactOne || $cells[0];
+        expect(target, 'track-number cell to click').to.exist;
 
-      cy.wrap(target)
-        .scrollIntoView()
-        .trigger('mouseover', { force: true }) // reveals play icon on hover
-        .find('.fas.fa-play, .fa-play.mr-2')
-        .first()
-        .click({ force: true });              // the cell itself is clickable
-    })
-    // give the player a moment to request the new audio, then record the freshest URL
-    .then(() => cy.wait(2000))
-    .then(() => {
-      const newOnes = audioUrls.slice(beforeCount);
-      if (newOnes.length) {
-        currentAudioUrl = newOnes[newOnes.length - 1]; // most recent audio URL since the click
-      }
-    });
-});
+        // hover to reveal play icon, then click play icon or the cell
+        cy.wrap(target)
+          .scrollIntoView()
+          .trigger('mouseover', { force: true })
+          .find('.fas.fa-play, .fa-play.mr-2')
+          .first()
+          .click({ force: true });
+      })
+      .then(() => cy.wait(2000))
+      .then(() => {
+        const newOnes = audioUrls.slice(beforeCount);
+        if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
+      });
+  });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
-      cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
-      cy.log('FINGERPRINT_STRICT =', JSON.stringify(Cypress.env('FINGERPRINT_STRICT')));
-    const skipAudio = Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
+    cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
+    cy.log('FINGERPRINT_STRICT =', JSON.stringify(Cypress.env('FINGERPRINT_STRICT')));
+
+    const skipAudio =
+      Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
     if (skipAudio) {
       cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
       return;
     }
 
-    // Try to assert play state if <audio> exists; warn if WebAudio/MSE
+    // DOM sanity
     cy.get('body').then(($body) => {
       const el = $body.find('audio').get(0);
       if (!el) {
-        cy.task('recordStep', { name: 'audio-element', status: 'warning', note: '<audio> not found; player may use WebAudio/MSE' });
+        cy.task('recordStep', {
+          name: 'audio-element',
+          status: 'warning',
+          note: '<audio> not found; player may use WebAudio/MSE',
+        });
         return;
       }
       expect(el.paused).to.eq(false);
     });
 
-    // Time should advance
     cy.get('body').then(($body) => {
       const el = $body.find('audio').get(0);
       if (el) {
@@ -282,72 +295,62 @@ it('06 – Click track #1 to start playback', () => {
       }
     });
 
-    // fingerprint chain
-cy
-  .then(() => {
-    // If we haven't seen any audio at all, warn and stop
-    if (!audioUrls.length && !currentAudioUrl) {
-      return cy.task('recordStep', {
-        name: 'audio-fingerprint',
-        status: 'warning',
-        note: 'Live audio URL not captured; MSE/DRM or no new request after click'
-      });
-    }
-  })
-  .then(() => {
-    const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
-    if (!urlToUse) return; // already warned above
+    // fingerprint chain (use fresh URL from Step 6; fallback to newest intercepted)
+    cy.then(() => {
+      const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
+      if (!urlToUse) {
+        return cy.task('recordStep', {
+          name: 'audio-fingerprint',
+          status: 'warning',
+          note: 'Live audio URL not captured; MSE/DRM or no new request after click',
+        });
+      }
 
-    return cy
-      .task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 })
-      .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
-      .then(({ live, ref }) => {
-        if (!ref || !live || !live.length) {
-          return cy.task('recordStep', {
+      return cy
+        .task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 })
+        .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
+        .then(({ live, ref }) => {
+          if (!ref || !live || !live.length) {
+            return cy.task('recordStep', {
+              name: 'audio-fingerprint',
+              status: 'warning',
+              note: 'Missing reference or live fingerprint',
+            });
+          }
+          return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
+        })
+        .then((result) => {
+          if (!result || result.pass === undefined) return;
+
+          const { score, pass } = result;
+
+          // Show in mochawesome logs
+          cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
+          cy.log(`Audio URL: ${currentAudioUrl || audioUrls[audioUrls.length - 1] || '(none)'}`);
+
+          // Persist to results.json
+          cy.task('recordStep', {
             name: 'audio-fingerprint',
-            status: 'warning',
-            note: 'Missing reference or live fingerprint'
+            status: pass ? 'pass' : 'warning',
+            score,
+            url: currentAudioUrl || audioUrls[audioUrls.length - 1],
           });
-        }
-        return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
-      })
-.then((result) => { //Add two lines so you always get the similarity and the URL in both the HTML report (as logs) and in results.json (as a steps[] record)—even on pass.
-  if (!result || result.pass === undefined) return;
 
-  const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
-  const { score, pass } = result;
+          const strict =
+            Cypress.env('FINGERPRINT_STRICT') === true ||
+            Cypress.env('FINGERPRINT_STRICT') === 'true';
 
-  // Show score in Mochawesome step logs
-  cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
-  cy.log(`Audio URL: ${urlToUse || '(none)'}`);
-
-  // Record into results.json whether pass or warning (and include the score + url)
-  cy.task('recordStep', {
-    name: 'audio-fingerprint',
-    status: pass ? 'pass' : 'warning',
-    score,
-    url: urlToUse
-  });
-
-  const strict =
-    Cypress.env('FINGERPRINT_STRICT') === true ||
-    Cypress.env('FINGERPRINT_STRICT') === 'true';
-
-  if (!pass && strict) {
-    expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
-  }
-});
+          if (!pass && strict) {
+            expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
           }
         });
-     // removed  });
-   // removed  });
-});
+    });
+  });
 
   // 08 – Verify bottom player controls (icon-based, container-agnostic)
   it('08 – Verify bottom player controls', () => {
-    // If the bar isn't mounted yet, poke a play control
     cy.get('body', { timeout: 30000 })
-      .then($b => $b.find('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__').length > 0)
+      .then(($b) => $b.find('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__').length > 0)
       .then((hasBar) => {
         if (!hasBar) {
           cy.get('button .fa-play-circle, button .fa-play', { timeout: 10000 })
@@ -364,10 +367,12 @@ cy
     cy.get('.fa-step-backward, .fa-backward', { timeout: 30000 }).should('exist');
     cy.get('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause', { timeout: 30000 }).should('exist');
     cy.get('.fa-step-forward, .fa-forward', { timeout: 30000 }).should('exist');
-
     cy.get('[role="slider"], [class*="progress-slider"]', { timeout: 30000 }).should('exist');
-    cy.get('span').then($spans => {
-      const times = [...$spans].map(s => (s.textContent || '').trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
+
+    cy.get('span').then(($spans) => {
+      const times = [...$spans]
+        .map((s) => (s.textContent || '').trim())
+        .filter((t) => /^\d{2}:\d{2}$/.test(t));
       expect(times.length, 'player time labels').to.be.greaterThan(0);
     });
   });
@@ -375,25 +380,32 @@ cy
   // 09 – Progress advances, then pause toggles
   it('09 – Progress advances, then pause toggles', () => {
     const readCurrentTime = () =>
-      cy.get('span').then($spans => {
-        const mmss = [...$spans].map(s => (s.textContent || '').trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
+      cy.get('span').then(($spans) => {
+        const mmss = [...$spans]
+          .map((s) => (s.textContent || '').trim())
+          .filter((t) => /^\d{2}:\d{2}$/.test(t));
         return mmss.length ? mmss[0] : null;
       });
     const toSec = (t) => {
-      if (!t) return null; const [m, s] = t.split(':').map(n => parseInt(n, 10));
-      return (isNaN(m) || isNaN(s)) ? null : m * 60 + s;
+      if (!t) return null;
+      const [m, s] = t.split(':').map((n) => parseInt(n, 10));
+      return isNaN(m) || isNaN(s) ? null : m * 60 + s;
     };
 
     let t1s = null;
-    readCurrentTime().then(t1 => { t1s = toSec(t1); });
+    readCurrentTime().then((t1) => {
+      t1s = toSec(t1);
+    });
     cy.wait(1500);
-    readCurrentTime().then(t2 => {
+    readCurrentTime().then((t2) => {
       const t2s = toSec(t2);
       expect(t2s, 'current time (s)').to.be.a('number');
       if (t1s !== null) expect(t2s).to.be.greaterThan(t1s);
     });
 
-    cy.get('button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play', { timeout: 15000 })
+    cy.get('button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play', {
+      timeout: 15000,
+    })
       .filter(':visible')
       .first()
       .parents('button')
@@ -411,10 +423,10 @@ cy
         const hasPlayIcon = $body.find('.fa-play-circle, .fa-play').length > 0;
         if (hasPlayIcon) expect(hasPlayIcon, 'play icon visible after toggle').to.eq(true);
         else {
-          return readCurrentTime().then(tBefore => {
+          return readCurrentTime().then((tBefore) => {
             const sBefore = toSec(tBefore);
             cy.wait(1000).then(() => {
-              readCurrentTime().then(tAfter => {
+              readCurrentTime().then((tAfter) => {
                 const sAfter = toSec(tAfter);
                 expect(sAfter - sBefore, 'time delta while paused').to.be.at.most(0);
               });
@@ -445,18 +457,22 @@ cy
     });
 
     cy.url({ timeout: 60000 }).should('match', /\/login(?:[/?#]|$)/);
-    cy.get('input[type="email"], input[name="email"], input[placeholder*="mail" i]', { timeout: 10000 }).should('exist');
+    cy.get('input[type="email"], input[name="email"], input[placeholder*="mail" i]', {
+      timeout: 10000,
+    }).should('exist');
     cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
     cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
-    });
-    // removed }); 
+  });
 
   after(() => {
     // Flush batched requests and results in one place
-    cy.then(() => {
-      for (const r of requests) cy.task('recordRequest', r);
-    })
-    .then(() => cy.task('flushResults'))
-    .then((outPath) => { cy.log(`Results written to ${outPath}`); });
+    cy
+      .then(() => {
+        for (const r of requests) cy.task('recordRequest', r);
+      })
+      .then(() => cy.task('flushResults'))
+      .then((outPath) => {
+        cy.log(`Results written to ${outPath}`);
+      });
   });
 });
