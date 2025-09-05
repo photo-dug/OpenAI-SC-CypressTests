@@ -337,10 +337,11 @@ cy
     expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
   }
 });
-        }
-      });
-    // Removed  });
-  });
+          }
+        });
+     });  // added  });
+  });   // added  });
+});
 
   // 08 – Verify bottom player controls (icon-based, container-agnostic)
   it('08 – Verify bottom player controls', () => {
