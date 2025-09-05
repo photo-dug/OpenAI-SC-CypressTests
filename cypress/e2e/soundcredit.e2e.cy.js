@@ -253,6 +253,7 @@ it('06 – Click track #1 to start playback', () => {
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
       cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
+      cy.log('FINGERPRINT_STRICT =', JSON.stringify(Cypress.env('FINGERPRINT_STRICT')));
     const skipAudio = Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
     if (skipAudio) {
       cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
@@ -310,21 +311,32 @@ cy
         }
         return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
       })
-      .then((result) => {
-        if (!result || result.pass === undefined) return;
-        const strict =
-          Cypress.env('FINGERPRINT_STRICT') === true ||
-          Cypress.env('FINGERPRINT_STRICT') === 'true';
-        if (!result.pass) {
-          if (strict) {
-            expect(result.pass, `Audio similarity score ${result.score?.toFixed?.(3)}`).to.be.true;
-          } else {
-            return cy.task('recordStep', {
-              name: 'audio-fingerprint',
-              status: 'warning',
-              score: result.score
-            });
-          }
+.then((result) => { //Add two lines so you always get the similarity and the URL in both the HTML report (as logs) and in results.json (as a steps[] record)—even on pass.
+  if (!result || result.pass === undefined) return;
+
+  const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
+  const { score, pass } = result;
+
+  // Show score in Mochawesome step logs
+  cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
+  cy.log(`Audio URL: ${urlToUse || '(none)'}`);
+
+  // Record into results.json whether pass or warning (and include the score + url)
+  cy.task('recordStep', {
+    name: 'audio-fingerprint',
+    status: pass ? 'pass' : 'warning',
+    score,
+    url: urlToUse
+  });
+
+  const strict =
+    Cypress.env('FINGERPRINT_STRICT') === true ||
+    Cypress.env('FINGERPRINT_STRICT') === 'true';
+
+  if (!pass && strict) {
+    expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
+  }
+});
         }
       });
   });
