@@ -339,8 +339,8 @@ cy
 });
           }
         });
-     });  // added  });
-  });   // added  });
+     // removed  });
+   // removed  });
 });
 
   // 08 – Verify bottom player controls (icon-based, container-agnostic)
