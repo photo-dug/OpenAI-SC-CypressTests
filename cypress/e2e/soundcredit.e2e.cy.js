@@ -1,6 +1,8 @@
 // cypress/e2e/soundcredit.e2e.cy.js
 const username = Cypress.env('SC_USERNAME') || '';
 const password = Cypress.env('SC_PASSWORD') || '';
+const SESSION_VERSION = 'v1'; // bump this when you modify the login flow
+const SESSION_ID = [`sc-login:${SESSION_VERSION}`, username]; // stable + versioned
 
 const login = () => {
   cy.visit('/login');
@@ -48,8 +50,17 @@ const login = () => {
   cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/);
 };
 
-const ensureLoggedIn = () => cy.session([username, password], login, { cacheAcrossSpecs: true });
-
+// Use the versioned id here (do NOT create an inline function – use the top-level `login`)
+const ensureLoggedIn = () =>
+  cy.session(SESSION_ID, login, {
+    cacheAcrossSpecs: true,
+    // optional: keep a cheap validator to avoid recreating unnecessarily
+    validate() {
+      cy.request({ url: '/playlists', failOnStatusCode: false })
+        .its('status')
+        .should('be.oneOf', [200, 302]); // 302 if it bounces somewhere allowed
+    },
+  });
 // collect audio request URLs + batched request logs across the whole spec
 let audioUrls = [];
 let requests = [];
@@ -128,7 +139,10 @@ describe('SoundCredit – Login → Play → Logout', () => {
   before(() => {
     expect(username, 'SC_USERNAME env var').to.be.a('string').and.not.be.empty;
     expect(password, 'SC_PASSWORD env var').to.be.a('string').and.not.be.empty;
-
+  if (Cypress.config('isInteractive') && Cypress.session && Cypress.session.clearAllSavedSessions) {
+    Cypress.session.clearAllSavedSessions(); //This only runs in the app (headed/interactive). CI remains unchanged. Clear saved sessions in the Cypress app (dev-friendly). When you’re working interactively, the app keeps saved sessions between hot-reloads. You can clear them on startup so a new session can be created safely.
+    ]);
+    
     // Capture requests without calling cy.* inside this callback
     cy.intercept('GET', '**', (req) => {
       const startedAt = Date.now();
