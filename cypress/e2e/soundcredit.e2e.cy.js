@@ -141,7 +141,8 @@ describe('SoundCredit – Login → Play → Logout', () => {
     expect(password, 'SC_PASSWORD env var').to.be.a('string').and.not.be.empty;
   if (Cypress.config('isInteractive') && Cypress.session && Cypress.session.clearAllSavedSessions) {
     Cypress.session.clearAllSavedSessions(); //This only runs in the app (headed/interactive). CI remains unchanged. Clear saved sessions in the Cypress app (dev-friendly). When you’re working interactively, the app keeps saved sessions between hot-reloads. You can clear them on startup so a new session can be created safely.
-    ]);
+  });
+    
     
     // Capture requests without calling cy.* inside this callback
     cy.intercept('GET', '**', (req) => {
