@@ -91,7 +91,6 @@ const goToProjects = () => {
       .visit('/playlists', { failOnStatusCode: false })
       .then(() => cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/));
   });
-};
 
 const openPlaylistByTitle = (title) => {
   const re = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
