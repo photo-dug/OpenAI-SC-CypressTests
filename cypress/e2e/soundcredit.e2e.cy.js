@@ -1,8 +1,10 @@
 // cypress/e2e/soundcredit.e2e.cy.js
 const username = Cypress.env('SC_USERNAME') || '';
 const password = Cypress.env('SC_PASSWORD') || '';
-const SESSION_VERSION = 'v1'; // bump this when you modify the login flow
-const SESSION_ID = [`sc-login:${SESSION_VERSION}`, username]; // stable + versioned
+
+/* ---------- login with a versioned session ---------- */
+const SESSION_VERSION = 'v1';
+const SESSION_ID = [`sc-login:${SESSION_VERSION}`, username];
 
 const login = () => {
   cy.visit('/login');
@@ -50,21 +52,19 @@ const login = () => {
   cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/);
 };
 
-// Use the versioned id here (do NOT create an inline function – use the top-level `login`)
 const ensureLoggedIn = () =>
   cy.session(SESSION_ID, login, {
     cacheAcrossSpecs: true,
-    // optional: keep a cheap validator to avoid recreating unnecessarily
     validate() {
       cy.request({ url: '/playlists', failOnStatusCode: false })
         .its('status')
-        .should('be.oneOf', [200, 302]); // 302 if it bounces somewhere allowed
+        .should('be.oneOf', [200, 302]);
     },
   });
-// collect audio request URLs + batched request logs across the whole spec
+
+/* ---------- globals ---------- */
 let audioUrls = [];
 let requests = [];
-// track the URL that started after we click track #1
 let currentAudioUrl = null;
 
 /* ---------- helpers ---------- */
@@ -91,6 +91,7 @@ const goToProjects = () => {
       .visit('/playlists', { failOnStatusCode: false })
       .then(() => cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/));
   });
+};
 
 const openPlaylistByTitle = (title) => {
   const re = new RegExp(`^\\s*${Cypress._.escapeRegExp(title)}\\s*$`, 'i');
@@ -138,12 +139,12 @@ describe('SoundCredit – Login → Play → Logout', () => {
   before(() => {
     expect(username, 'SC_USERNAME env var').to.be.a('string').and.not.be.empty;
     expect(password, 'SC_PASSWORD env var').to.be.a('string').and.not.be.empty;
-  if (Cypress.config('isInteractive') && Cypress.session && Cypress.session.clearAllSavedSessions) {
-    Cypress.session.clearAllSavedSessions(); //This only runs in the app (headed/interactive). CI remains unchanged. Clear saved sessions in the Cypress app (dev-friendly). When you’re working interactively, the app keeps saved sessions between hot-reloads. You can clear them on startup so a new session can be created safely.
-      }
-    });
-  });
-    
+
+    // Clear saved sessions in the App (prevents "session already exists" on hot-reload)
+    if (Cypress.config('isInteractive') && Cypress.session?.clearAllSavedSessions) {
+      Cypress.session.clearAllSavedSessions();
+    }
+
     // Capture requests without calling cy.* inside this callback
     cy.intercept('GET', '**', (req) => {
       const startedAt = Date.now();
@@ -178,7 +179,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
       if (entry) {
         const data = typeof entry.toJSON === 'function' ? entry.toJSON() : entry;
         cy.task('recordNavTiming', data);
-        cy.wait(4000); // optional settle
       }
     });
   });
@@ -189,7 +189,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
   });
 
   it('03 – Open project "The Astronauts - Surf Party"', () => {
-    cy.wait(4000); // optional settle
     const t0 = Date.now();
     const title = 'The Astronauts - Surf Party';
 
@@ -201,7 +200,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
       }
     });
 
-    // Click the grid card (container) for our title
+    // Click the grid card (container) for our title; if toolbar fails to appear, go direct
     cy.contains('.project-preview-card .project-title', title, { timeout: 60000 })
       .should('be.visible')
       .parents('.project-preview-card')
@@ -209,7 +208,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
       .scrollIntoView()
       .click({ force: true });
 
-    // If toolbar didn’t appear, go directly
     cy.get('body', { timeout: 8000 }).then(($b) => {
       const hasToolbar = [...$b.find('button, .btn, [role=button]')].some((el) =>
         /open\s*link/i.test((el.textContent || '').trim()),
@@ -221,12 +219,12 @@ describe('SoundCredit – Login → Play → Logout', () => {
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
     cy.contains('button, .btn, [role=button]', /details/i, { timeout: 60000 }).should('be.visible');
     cy.url({ timeout: 60000 }).should('match', /\/playlists\/\d+(?:[/?#]|$)/);
+
     cy.then(() => cy.task('recordAction', { name: 'open-project', durationMs: Date.now() - t0 }));
   });
 
   // 04 – Project buttons visible
   it('04 – Project buttons visible', () => {
-    cy.wait(3000); // optional settle
     cy.contains('button, .btn, [role=button]', /open\s*link/i, { timeout: 60000 }).should('be.visible');
     cy.contains('button, .btn, [role=button]', /details/i, { timeout: 60000 }).should('be.visible');
     cy.url().should('match', /\/playlists\/\d+(?:[/?#]|$)/);
@@ -239,27 +237,23 @@ describe('SoundCredit – Login → Play → Logout', () => {
   // 05 – At least one audio file listed (playlist table)
   it('05 – At least one audio file listed', () => {
     cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
-    cy.get('.playlist-file-table .playlist-file-table__playlist-track-number').should(
-      'have.length.greaterThan',
-      0,
-    );
+    cy.get('.playlist-file-table .playlist-file-table__playlist-track-number')
+      .should('have.length.greaterThan', 0);
   });
 
   // 06 – Click track #1 to start playback (playlist table)
   it('06 – Click track #1 to start playback', () => {
     cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
 
-    // remember how many audio requests we had before the click
     const beforeCount = audioUrls.length;
 
     cy.get('.playlist-file-table .playlist-file-table__playlist-track-number', { timeout: 60000 })
       .then(($cells) => {
-        // Prefer the cell whose text is exactly "1"; else first cell
+        // Prefer the cell whose text is exactly "1"; else first
         const exactOne = [...$cells].find((el) => ((el.textContent || '').trim() === '1'));
         const target = exactOne || $cells[0];
         expect(target, 'track-number cell to click').to.exist;
 
-        // hover to reveal play icon, then click play icon or the cell
         cy.wrap(target)
           .scrollIntoView()
           .trigger('mouseover', { force: true })
@@ -267,7 +261,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
           .first()
           .click({ force: true });
       })
-      .then(() => cy.wait(2000))
+      .then(() => cy.wait(750))
       .then(() => {
         const newOnes = audioUrls.slice(beforeCount);
         if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
@@ -299,18 +293,19 @@ describe('SoundCredit – Login → Play → Logout', () => {
       expect(el.paused).to.eq(false);
     });
 
+    // time should advance
     cy.get('body').then(($body) => {
       const el = $body.find('audio').get(0);
       if (el) {
         const t1 = el.currentTime;
-        cy.wait(3000).then(() => {
+        cy.wait(1500).then(() => {
           const t2 = el.currentTime;
           expect(t2).to.be.greaterThan(t1);
         });
       }
     });
 
-    // fingerprint chain (use fresh URL from Step 6; fallback to newest intercepted)
+    // fingerprint chain (use fresh URL; fallback to newest intercepted)
     cy.then(() => {
       const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
       if (!urlToUse) {
@@ -339,11 +334,9 @@ describe('SoundCredit – Login → Play → Logout', () => {
 
           const { score, pass } = result;
 
-          // Show in mochawesome logs
           cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
           cy.log(`Audio URL: ${currentAudioUrl || audioUrls[audioUrls.length - 1] || '(none)'}`);
 
-          // Persist to results.json
           cy.task('recordStep', {
             name: 'audio-fingerprint',
             status: pass ? 'pass' : 'warning',
@@ -408,9 +401,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
     };
 
     let t1s = null;
-    readCurrentTime().then((t1) => {
-      t1s = toSec(t1);
-    });
+    readCurrentTime().then((t1) => { t1s = toSec(t1); });
     cy.wait(1500);
     readCurrentTime().then((t2) => {
       const t2s = toSec(t2);
@@ -456,14 +447,12 @@ describe('SoundCredit – Login → Play → Logout', () => {
   it('10 – Logout and verify redirected to login', () => {
     const t0 = Date.now();
 
-    // Sidebar logout anchor
     cy.get('aside.m-sidebar', { timeout: 60000 }).scrollTo('bottom', { ensureScrollable: false });
     cy.get('a.sidebar-nav-link[href="/login"], .logout-nav a[href="/login"]', { timeout: 60000 })
       .should('be.visible')
       .scrollIntoView()
       .click({ force: true });
 
-    // Fallback: clear cookies + visit /login
     cy.url({ timeout: 10000 }).then((u) => {
       if (!/\/login(?:[/?#]|$)/.test(u)) {
         cy.clearCookies();
@@ -472,22 +461,17 @@ describe('SoundCredit – Login → Play → Logout', () => {
     });
 
     cy.url({ timeout: 60000 }).should('match', /\/login(?:[/?#]|$)/);
-    cy.get('input[type="email"], input[name="email"], input[placeholder*="mail" i]', {
-      timeout: 10000,
-    }).should('exist');
+    cy.get('input[type="email"], input[name="email"], input[placeholder*="mail" i]', { timeout: 10000 }).should('exist');
     cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
+
     cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
   });
 
   after(() => {
     // Flush batched requests and results in one place
     cy
-      .then(() => {
-        for (const r of requests) cy.task('recordRequest', r);
-      })
+      .then(() => { for (const r of requests) cy.task('recordRequest', r); })
       .then(() => cy.task('flushResults'))
-      .then((outPath) => {
-        cy.log(`Results written to ${outPath}`);
-      });
+      .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
 });
