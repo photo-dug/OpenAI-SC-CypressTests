@@ -13,6 +13,7 @@ npm test
 ```bash
 CYPRESS_SC_USERNAME="dougross@me.com" \
 CYPRESS_SC_PASSWORD="Gn^8hbr3w" \
+CYPRESS_FINGERPRINT_STRICT: 'true'
 CYPRESS_SKIP_AUDIO=false \
 npx cypress open
 ```
@@ -24,7 +25,11 @@ npx cypress open
 
 ## CI (GitHub Actions)
 - Add repository secrets: `SC_USERNAME`, `SC_PASSWORD`.
+- CYPRESS_FINGERPRINT_STRICT=true CYPRESS_SKIP_AUDIO=false npx cypress open
 - Fingerprint strictness is **warning** in CI (`FINGERPRINT_STRICT: 'false'`). Set to `'true'` to fail on low similarity.
+  - What strictness does (and how to force a fail)
+  - Strict = false: If similarity is below 0.90, Step 7 will still pass, but we record a "warning" and the score in results.json.
+  - Strict = true: If similarity < 0.90, Step 7 will fail with an assertion like: Audio similarity score 0.842.
 
 ## Packaging
 - Local: `npm run zip` → `soundcredit-e2e.zip` (excludes node_modules and artifacts).
