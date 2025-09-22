@@ -17,18 +17,20 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20'            # Node 20 is very stable with Cypress 14
           cache: 'npm'
 
       - name: Install deps
-        run: npm i
+        run: npm ci
 
+      # Optional diagnostics (helps when CI differs from local)
       - name: Diagnostics
         run: |
           node -v
           npm -v
           npx cypress --version || true
-          npx cypress info || true
+          ls -la
+          ls -la cypress || true
           ls -la cypress/e2e || true
 
       - name: Ensure artifact dirs exist
@@ -40,21 +42,24 @@ jobs:
           browser: chrome
           config-file: cypress.config.cjs
           spec: cypress/e2e/soundcredit.e2e.cy.js
+          # we don't build an app here, but the action expects a 'build' input
           build: echo "skip build"
           config: baseUrl=https://portal.soundcredit.com
         env:
-          # Secrets
+          # credentials (pass both plain and CYPRESS_ in case your config maps either)
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
           CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
-          # Controls/Toggles
-          CYPRESS_SKIP_AUDIO: 'false'  // <-- Change to skip or run the ausio comparison with the reference mp3
-          CYPRESS_FINGERPRINT_STRICT: 'true'        // fail on low similarity
-          CYPRESS_FINGERPRINT_SECONDS: '5'
+
+          # toggles (set repo Variables → Actions if you want to control these globally)
+          CYPRESS_SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
+          CYPRESS_FINGERPRINT_STRICT: ${{ vars.FINGERPRINT_STRICT || 'false' }}
+          CYPRESS_FINGERPRINT_SECONDS: ${{ vars.FINGERPRINT_SECONDS || '5' }}
+          CYPRESS_FINGERPRINT_THRESHOLD: ${{ vars.FINGERPRINT_THRESHOLD || '0.90' }}
 
       - name: Upload Cypress artifacts
-        if: always()
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: cypress-artifacts
@@ -67,11 +72,11 @@ jobs:
           retention-days: 14
 
       - name: Create ZIP package
-        if: always()
+        if: ${{ always() }}
         run: npm run zip
 
       - name: Upload ZIP
-        if: always() && hashFiles('soundcredit-e2e.zip') != ''
+        if: ${{ always() && hashFiles('soundcredit-e2e.zip') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: soundcredit-e2e.zip
