@@ -65,13 +65,13 @@ function registerAudioTasks(on, config) {
         return null;
       }
     },
-    async fingerprintAudioFromUrl(url) {
+    async fingerprintMedia({ url, seconds = 5 }) {
       try {
-        const pcm = await decodeToPCMFromUrl(url);
+        const pcm = await decodeToPCMFromUrl(url, seconds);
         return fingerprintFromPCM(pcm);
-      } catch {
-        return null;
-      }
+      } catch (e) {
+        return null; // never throw; the spec logs a warning
+    }
     },
     compareFingerprints({ a, b, threshold = 0.9 }) {
       const score = cosine(a, b);
