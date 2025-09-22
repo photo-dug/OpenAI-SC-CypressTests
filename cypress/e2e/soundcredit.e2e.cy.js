@@ -344,30 +344,66 @@ describe('SoundCredit – Login → Play → Logout', () => {
           }
           return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
         })
-        .then((result) => {
-          if (!result || result.pass === undefined) return;
+cy.then(() => {
+  // choose the best URL we have
+  const last = audioUrls[audioUrls.length - 1];
+  const urlToUse =
+    currentAudioUrl ||
+    (audioUrls.find((u) => /\.m3u8(\?|$)/i.test(u)) || audioUrls.find((u) => /\.mpd(\?|$)/i.test(u))) ||
+    last;
 
-          const { score, pass } = result;
-
-          cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
-          cy.log(`Audio URL: ${currentAudioUrl || audioUrls[audioUrls.length - 1] || '(none)'}`);
-
-          cy.task('recordStep', {
-            name: 'audio-fingerprint',
-            status: pass ? 'pass' : 'warning',
-            score,
-            url: currentAudioUrl || audioUrls[audioUrls.length - 1],
-          });
-
-          const strict =
-            Cypress.env('FINGERPRINT_STRICT') === true ||
-            Cypress.env('FINGERPRINT_STRICT') === 'true';
-
-          if (!pass && strict) {
-            expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
-          }
-        });
+  if (!urlToUse) {
+    return cy.task('recordStep', {
+      name: 'audio-fingerprint',
+      status: 'warning',
+      note: 'Live audio URL not captured; MSE/DRM or no new request after click'
     });
+  }
+
+  const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
+  const seconds = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
+
+  const liveTask = isManifest
+    ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
+    : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
+
+  return liveTask
+    .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref, urlToUse })))
+    .then(({ live, ref, urlToUse }) => {
+      if (!ref || !live || !live.length) {
+        return cy.task('recordStep', {
+          name: 'audio-fingerprint',
+          status: 'warning',
+          note: 'Missing reference or live fingerprint',
+          url: urlToUse
+        });
+      }
+      return cy.task('compareFingerprints', { a: ref, b: live, threshold: Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90) })
+        .then((result) => ({ ...result, urlToUse }));
+    })
+    .then((result) => {
+      if (!result || result.pass === undefined) return;
+      const { score, pass, urlToUse } = result;
+
+      // Log & persist
+      cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
+      cy.log(`Audio URL: ${urlToUse}`);
+      cy.task('recordStep', {
+        name: 'audio-fingerprint',
+        status: pass ? 'pass' : 'warning',
+        score,
+        url: urlToUse
+      });
+
+      const strict =
+        Cypress.env('FINGERPRINT_STRICT') === true ||
+        Cypress.env('FINGERPRINT_STRICT') === 'true';
+
+      if (!pass && strict) {
+        expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
+      }
+    });
+});
   });
 
   // 08 – Verify bottom player controls (icon-based, container-agnostic)
