@@ -153,14 +153,24 @@ describe('SoundCredit – Login → Play → Logout', () => {
         const url = req.url.toLowerCase();
         const looksAudio =
           ct.includes('audio') ||
+          ct.includes('application/vnd.apple.mpegurl') ||   // HLS .m3u8
+          ct.includes('application/dash+xml') ||           // DASH .mpd
+          ct.includes('video/mp2t') ||                     // TS segments
+          ct.includes('application/octet-stream');         // segments sometimes
           url.includes('.mp3') ||
           url.includes('.m3u8') ||
           url.includes('.aac') ||
           url.includes('.ogg');
+         // extension/pattern based
+        const segLike = /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(url) ||
+                  /segment=|chunk=|init\.mp4|frag/i.test(url);
         const durationMs = Date.now() - startedAt;
-        if (looksAudio) audioUrls.push(req.url);
-        requests.push({ url: req.url, method: req.method, status: res.statusCode, durationMs });
-      });
+        if (looksAudio || segLike) {
+        audioUrls.push(req.url); // keep raw (not lowercased), we’ll use it later
+  }
+
+  requests.push({ url: req.url, method: req.method, status: res.statusCode, durationMs });
+});
     });
 
     // Force desktop layout; wait for dom ready (helps Cloud)
@@ -253,7 +263,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
         const exactOne = [...$cells].find((el) => ((el.textContent || '').trim() === '1'));
         const target = exactOne || $cells[0];
         expect(target, 'track-number cell to click').to.exist;
-
         cy.wrap(target)
           .scrollIntoView()
           .trigger('mouseover', { force: true })
@@ -261,12 +270,18 @@ describe('SoundCredit – Login → Play → Logout', () => {
           .first()
           .click({ force: true });
       })
-      .then(() => cy.wait(750))
-      .then(() => {
-        const newOnes = audioUrls.slice(beforeCount);
-        if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
-      });
+    // after the click & small wait
+    cy.wait(750).then(() => {
+    const beforeCount = audioUrls.length;
+    cy.window().then((w) => {
+      const names = (w.performance?.getEntriesByType?.('resource') || []).map((e) => e.name.toLowerCase());
+      const hits = names.filter((u) => /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(u));
+      hits.forEach((u) => audioUrls.push(u));
+    }).then(() => {
+      const newOnes = audioUrls.slice(beforeCount);
+      if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
   });
+});
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
     cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
