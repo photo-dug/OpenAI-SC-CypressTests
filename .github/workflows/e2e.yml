@@ -49,8 +49,9 @@ jobs:
           CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
           CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           # Controls/Toggles
-          FINGERPRINT_STRICT: 'false'
-          CYPRESS_SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }} // <-- Change to skip or run the ausio comparison with the reference mp3
+          CYPRESS_SKIP_AUDIO: 'false'  // <-- Change to skip or run the ausio comparison with the reference mp3
+          CYPRESS_FINGERPRINT_STRICT: 'true'        // fail on low similarity
+          CYPRESS_FINGERPRINT_SECONDS: '5'
 
       - name: Upload Cypress artifacts
         if: always()
