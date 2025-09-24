@@ -151,20 +151,22 @@ describe('SoundCredit – Login → Play → Logout', () => {
       req.on('response', (res) => {
         const ct = String(res.headers['content-type'] || '');
         const url = req.url.toLowerCase();
-        const looksAudio =
-          ct.includes('audio') ||
-          ct.includes('application/vnd.apple.mpegurl') ||   // HLS .m3u8
-          ct.includes('application/dash+xml') ||           // DASH .mpd
-          ct.includes('video/mp2t') ||                     // TS segments
-          ct.includes('application/octet-stream');         // segments sometimes
-          url.includes('.mp3') ||
-          url.includes('.m3u8') ||
-          url.includes('.aac') ||
-          url.includes('.ogg');
-         // extension/pattern based
-        const segLike = /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(url) ||
-                  /segment=|chunk=|init\.mp4|frag/i.test(url);
-        const durationMs = Date.now() - startedAt;
+      const looksAudio =
+        ct.includes('audio') ||
+        ct.includes('application/vnd.apple.mpegurl') ||   // HLS .m3u8
+        ct.includes('application/dash+xml') ||            // DASH .mpd
+        ct.includes('video/mp2t') ||                      // TS segments
+        ct.includes('application/octet-stream');          // segments sometimes
+
+      const urlLike =
+        url.includes('.mp3') || url.includes('.aac') || url.includes('.ogg') ||
+        url.includes('.m3u8') || url.includes('.mpd') || url.includes('.wav');
+
+      // extension/pattern based (segments / MSE)
+      const segLike =
+        /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(url) ||
+        /segment=|chunk=|init\.mp4|frag/i.test(url);
+
         if (looksAudio || segLike) {
         audioUrls.push(req.url); // keep raw (not lowercased), we’ll use it later
   }
@@ -251,7 +253,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
       .should('have.length.greaterThan', 0);
   });
 
-  // 06 – Click track #1 to start playback (playlist table)
+// 06 – Click track #1 to start playback (playlist table)
   it('06 – Click track #1 to start playback', () => {
     cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
 
@@ -259,28 +261,30 @@ describe('SoundCredit – Login → Play → Logout', () => {
 
     cy.get('.playlist-file-table .playlist-file-table__playlist-track-number', { timeout: 60000 })
       .then(($cells) => {
-        // Prefer the cell whose text is exactly "1"; else first
+        // Prefer the cell whose text is exactly "1"; else first cell
         const exactOne = [...$cells].find((el) => ((el.textContent || '').trim() === '1'));
         const target = exactOne || $cells[0];
         expect(target, 'track-number cell to click').to.exist;
-        cy.wrap(target)
-          .scrollIntoView()
-          .trigger('mouseover', { force: true })
-          .find('.fas.fa-play, .fa-play.mr-2')
-          .first()
-          .click({ force: true });
-      })
-    // after the click & small wait
-    cy.wait(750).then(() => {
-    const beforeCount = audioUrls.length;
-    cy.window().then((w) => {
-      const names = (w.performance?.getEntriesByType?.('resource') || []).map((e) => e.name.toLowerCase());
-      const hits = names.filter((u) => /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(u));
-      hits.forEach((u) => audioUrls.push(u));
-    }).then(() => {
-      const newOnes = audioUrls.slice(beforeCount);
-      if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
-  });
+
+      cy.wrap(target)
+        .scrollIntoView()
+        .trigger('mouseover', { force: true })
+        .find('.fas.fa-play, .fa-play.mr-2')
+        .first()
+        .click({ force: true });
+    })
+    .then(() => cy.wait(750))
+    .then(() => {
+      // backfill from Resource Timing too (short requests can be missed)
+      const prev = audioUrls.length;
+      return cy.window().then((w) => {
+        const names = (w.performance?.getEntriesByType?.('resource') || []).map((e) => (e.name || '').toLowerCase());
+        const hits = names.filter((u) => /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(u));
+        hits.forEach((u) => audioUrls.push(u));
+        const newOnes = audioUrls.slice(prev);
+        if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
+      });
+    });
 });
 
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
@@ -320,93 +324,69 @@ describe('SoundCredit – Login → Play → Logout', () => {
       }
     });
 
-    // fingerprint chain (use fresh URL; fallback to newest intercepted)
-    cy.then(() => {
-      const urlToUse = currentAudioUrl || audioUrls[audioUrls.length - 1];
-      if (!urlToUse) {
-        return cy.task('recordStep', {
-          name: 'audio-fingerprint',
-          status: 'warning',
-          note: 'Live audio URL not captured; MSE/DRM or no new request after click',
-        });
-      }
+  // fingerprint chain (use fresh URL; fallback to newest; support HLS/DASH)
+  cy.then(() => {
+    const last = audioUrls[audioUrls.length - 1];
+    const urlToUse =
+      currentAudioUrl ||
+      (audioUrls.find((u) => /\.m3u8(\?|$)/i.test(u)) || audioUrls.find((u) => /\.mpd(\?|$)/i.test(u))) ||
+      last;
 
-      return cy
-        .task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 })
-        .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
-        .then(({ live, ref }) => {
-          if (!ref || !live || !live.length) {
-            return cy.task('recordStep', {
-              name: 'audio-fingerprint',
-              status: 'warning',
-              note: 'Missing reference or live fingerprint',
-            });
-          }
-          return cy.task('compareFingerprints', { a: ref, b: live, threshold: 0.9 });
-        })
-cy.then(() => {
-  // choose the best URL we have
-  const last = audioUrls[audioUrls.length - 1];
-  const urlToUse =
-    currentAudioUrl ||
-    (audioUrls.find((u) => /\.m3u8(\?|$)/i.test(u)) || audioUrls.find((u) => /\.mpd(\?|$)/i.test(u))) ||
-    last;
-
-  if (!urlToUse) {
-    return cy.task('recordStep', {
-      name: 'audio-fingerprint',
-      status: 'warning',
-      note: 'Live audio URL not captured; MSE/DRM or no new request after click'
+    if (!urlToUse) {
+      return cy.task('recordStep', {
+        name: 'audio-fingerprint',
+        status: 'warning',
+        note: 'Live audio URL not captured; MSE/DRM or no new request after click'
     });
   }
 
-  const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
-  const seconds = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
+    const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
+    const seconds = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
 
-  const liveTask = isManifest
-    ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
-    : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
+    const liveTask = isManifest
+      ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
+      : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
 
-  return liveTask
-    .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref, urlToUse })))
-    .then(({ live, ref, urlToUse }) => {
-      if (!ref || !live || !live.length) {
-        return cy.task('recordStep', {
-          name: 'audio-fingerprint',
-          status: 'warning',
-          note: 'Missing reference or live fingerprint',
-          url: urlToUse
+    return liveTask
+      .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref, urlToUse })))
+      .then(({ live, ref, urlToUse }) => {
+        if (!ref || !live || !live.length) {
+          return cy.task('recordStep', {
+            name: 'audio-fingerprint',
+            status: 'warning',
+            note: 'Missing reference or live fingerprint',
+            url: urlToUse
         });
       }
-      return cy.task('compareFingerprints', { a: ref, b: live, threshold: Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90) })
-        .then((result) => ({ ...result, urlToUse }));
+        const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
+        return cy.task('compareFingerprints', { a: ref, b: live, threshold })
+               .then((result) => ({ ...result, urlToUse }));
     })
-    .then((result) => {
-      if (!result || result.pass === undefined) return;
-      const { score, pass, urlToUse } = result;
+      .then((result) => {
+        if (!result || result.pass === undefined) return;
 
-      // Log & persist
-      cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
-      cy.log(`Audio URL: ${urlToUse}`);
-      cy.task('recordStep', {
-        name: 'audio-fingerprint',
-        status: pass ? 'pass' : 'warning',
-        score,
-        url: urlToUse
+        const { score, pass, urlToUse } = result;
+
+        // Log & persist
+        cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
+        cy.log(`Audio URL: ${urlToUse}`);
+        cy.task('recordStep', {
+          name: 'audio-fingerprint',
+          status: pass ? 'pass' : 'warning',
+          score,
+          url: urlToUse
       });
 
-      const strict =
-        Cypress.env('FINGERPRINT_STRICT') === true ||
-        Cypress.env('FINGERPRINT_STRICT') === 'true';
-
-      if (!pass && strict) {
-        expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
+        const strict = Cypress.env('FINGERPRINT_STRICT') === true ||
+                     Cypress.env('FINGERPRINT_STRICT') === 'true';
+        if (!pass && strict) {
+          expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
       }
     });
-});
-  });
-
+}); 
+    
   // 08 – Verify bottom player controls (icon-based, container-agnostic)
+    
   it('08 – Verify bottom player controls', () => {
     cy.get('body', { timeout: 30000 })
       .then(($b) => $b.find('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__').length > 0)
@@ -525,6 +505,5 @@ cy.then(() => {
       .then(() => cy.task('flushResults'))
       .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
+    
 });
-  });
-  });
