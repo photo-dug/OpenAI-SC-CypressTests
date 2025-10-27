@@ -137,20 +137,23 @@ describe('SoundCredit – Login → Play → Logout', () => {
   });
 
   before(() => {
-    expect(username, 'SC_USERNAME env var').to.be.a('string').and.not.be.empty;
-    expect(password, 'SC_PASSWORD env var').to.be.a('string').and.not.be.empty;
+  expect(username, 'SC_USERNAME env var').to.be.a('string').and.not.be.empty;
+  expect(password, 'SC_PASSWORD env var').to.be.a('string').and.not.be.empty;
 
-    // Clear saved sessions in the App (prevents "session already exists" on hot-reload)
-    if (Cypress.config('isInteractive') && Cypress.session?.clearAllSavedSessions) {
-      Cypress.session.clearAllSavedSessions();
-    }
+  // Clear cached sessions only in the App (avoids “session already exists”)
+  if (Cypress.config('isInteractive') && Cypress.session?.clearAllSavedSessions) {
+    Cypress.session.clearAllSavedSessions();
+  }
 
-    // Capture requests without calling cy.* inside this callback
-    cy.intercept('GET', '**', (req) => {
-      const startedAt = Date.now();
-      req.on('response', (res) => {
-        const ct = String(res.headers['content-type'] || '');
-        const url = req.url.toLowerCase();
+  // Capture requests WITHOUT calling cy.task() inside the callback
+  cy.intercept('GET', '**', (req) => {
+    const startedAt = Date.now();
+
+    req.on('response', (res) => {
+      const ct  = String(res.headers['content-type'] || '').toLowerCase();
+      const url = req.url.toLowerCase();
+
+      // MIME-based
       const looksAudio =
         ct.includes('audio') ||
         ct.includes('application/vnd.apple.mpegurl') ||   // HLS .m3u8
@@ -158,30 +161,39 @@ describe('SoundCredit – Login → Play → Logout', () => {
         ct.includes('video/mp2t') ||                      // TS segments
         ct.includes('application/octet-stream');          // segments sometimes
 
+      // Path-based
       const urlLike =
         url.includes('.mp3') || url.includes('.aac') || url.includes('.ogg') ||
-        url.includes('.m3u8') || url.includes('.mpd') || url.includes('.wav');
+        url.includes('.wav') || url.includes('.m3u8') || url.includes('.mpd');
 
-      // extension/pattern based (segments / MSE)
+      // Segment patterns
       const segLike =
         /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(url) ||
         /segment=|chunk=|init\.mp4|frag/i.test(url);
 
-        if (looksAudio || segLike) {
-        audioUrls.push(req.url); // keep raw (not lowercased), we’ll use it later
-  }
+      const durationMs = Date.now() - startedAt;  // ✅ define it here
 
-  requests.push({ url: req.url, method: req.method, status: res.statusCode, durationMs });
-});
+      if (looksAudio || urlLike || segLike) {
+        audioUrls.push(req.url);                  // keep raw URL (not lowercased)
+      }
+
+      // Stash; flush later in `after()`
+      requests.push({
+        url: req.url,
+        method: req.method,
+        status: res.statusCode,
+        durationMs,
+      });
     });
-
-    // Force desktop layout; wait for dom ready (helps Cloud)
-    cy.viewport(1800, 900);
-    cy.document({ log: false }).its('readyState').should('eq', 'complete');
-
-    // pre-warm reference fingerprint cache (non-fatal)
-    cy.task('referenceFingerprint');
   });
+
+  // Stable layout; DOM ready
+  cy.viewport(1800, 900);
+  cy.document({ log: false }).its('readyState').should('eq', 'complete');
+
+  // Pre-warm reference (non-fatal)
+  cy.task('referenceFingerprint').catch(() => null);
+});
 
   it('01 – Login page loads & capture nav timing', () => {
     cy.visit('/login');
@@ -254,9 +266,8 @@ describe('SoundCredit – Login → Play → Logout', () => {
   });
 
 // 06 – Click track #1 to start playback (playlist table)
-  it('06 – Click track #1 to start playback', () => {
-    cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
-
+it('06 – Click track #1 to start playback', () => {
+   cy.get('.playlist-file-table', { timeout: 60000 }).should('exist');
     const beforeCount = audioUrls.length;
 
     cy.get('.playlist-file-table .playlist-file-table__playlist-track-number', { timeout: 60000 })
@@ -286,7 +297,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
       });
     });
 });
-
+  // 07 - Verify audio matches reference and ie playing
   it('07 – Verify audio is playing and matches reference (first 5s)', () => {
     cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
     cy.log('FINGERPRINT_STRICT =', JSON.stringify(Cypress.env('FINGERPRINT_STRICT')));
@@ -378,15 +389,14 @@ describe('SoundCredit – Login → Play → Logout', () => {
       });
 
         const strict = Cypress.env('FINGERPRINT_STRICT') === true ||
-                     Cypress.env('FINGERPRINT_STRICT') === 'true';
+                       Cypress.env('FINGERPRINT_STRICT') === 'true';
         if (!pass && strict) {
           expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
       }
     });
 }); 
     
-  // 08 – Verify bottom player controls (icon-based, container-agnostic)
-    
+  // 08 – Verify bottom player controls (icon-based, container-agnostic)  
   it('08 – Verify bottom player controls', () => {
     cy.get('body', { timeout: 30000 })
       .then(($b) => $b.find('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__').length > 0)
