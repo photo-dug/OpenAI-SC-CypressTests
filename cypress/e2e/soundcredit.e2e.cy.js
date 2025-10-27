@@ -505,5 +505,5 @@ describe('SoundCredit – Login → Play → Logout', () => {
       .then(() => cy.task('flushResults'))
       .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
-    
+    });
 });
