@@ -192,7 +192,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
   cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
   // Pre-warm reference (non-fatal)
-  cy.task('referenceFingerprint').catch(() => null);
+  cy.task('referenceFingerprint');
 });
 
   it('01 – Login page loads & capture nav timing', () => {
