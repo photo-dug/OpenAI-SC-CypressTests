@@ -61,7 +61,7 @@ function registerAudioTasks(on, config) {
         const pcm = await decodeToPCMFromUrl(p);
         cachedRef = fingerprintFromPCM(pcm);
         return cachedRef;
-      } catch {
+      } catch (e) {
         return null;
       }
     },
