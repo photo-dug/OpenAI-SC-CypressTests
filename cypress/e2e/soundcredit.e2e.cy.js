@@ -393,8 +393,9 @@ it('06 – Click track #1 to start playback', () => {
         if (!pass && strict) {
           expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
       }
-    });
-}); 
+      });
+    }); 
+  });
     
   // 08 – Verify bottom player controls (icon-based, container-agnostic)  
   it('08 – Verify bottom player controls', () => {
@@ -515,5 +516,4 @@ it('06 – Click track #1 to start playback', () => {
       .then(() => cy.task('flushResults'))
       .then((outPath) => { cy.log(`Results written to ${outPath}`); });
   });
-    });
 });
