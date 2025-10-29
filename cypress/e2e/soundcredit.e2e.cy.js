@@ -3,49 +3,62 @@ const username = Cypress.env('SC_USERNAME') || '';
 const password = Cypress.env('SC_PASSWORD') || '';
 
 /* ---------- login with a versioned session ---------- */
-const SESSION_VERSION = 'v1';
+const SESSION_VERSION const SESSION_VERSION = 'v2'; // bump when you change login()
 const SESSION_ID = [`sc-login:${SESSION_VERSION}`, username];
+const LOGIN_INPUTS = [
+  'input[type="email"]',
+  'input[name="email"]',
+  'input[placeholder*="mail" i]',
+  'input[id*="email" i]',
+  '.username-container input'
+].join(', ');
+
+const PASS_INPUTS = [
+  'input[type="password"]',
+  'input[name="password"]',
+  'input[placeholder*="password" i]',
+  'input[id*="password" i]'
+].join(', ');
 
 const login = () => {
-  cy.visit('/login');
+  // go to /login but don’t fail if the server returns a 30x or interstitial
+  cy.visit('/login', { failOnStatusCode: false });
 
-  // email
-  cy.get(
-    [
-      'input[type="email"]',
-      'input[name="email"]',
-      'input[placeholder*="mail" i]',
-      'input[id*="email" i]',
-      '.username-container input',
-    ].join(', '),
-    { timeout: 60000 },
-  )
-    .filter(':visible')
-    .first()
-    .clear()
-    .type(username, { delay: 60 });
+  // if we’re already authenticated (redirected to /home or /playlists), short-circuit
+  cy.url({ timeout: 15000 }).then((u) => {
+    if (/\/(home|playlists)(?:[/?#]|$)/.test(u)) {
+      // session is already valid — nothing to do
+      return;
+    }
 
-  // password
-  cy.get(
-    [
-      'input[type="password"]',
-      'input[name="password"]',
-      'input[placeholder*="password" i]',
-      'input[id*="password" i]',
-    ].join(', '),
-    { timeout: 60000 },
-  )
-    .filter(':visible')
-    .first()
-    .clear()
-    .type(password, { log: false });
+    // otherwise we are really on /login: fill the form if inputs exist
+    cy.get('body', { timeout: 30000 }).then(($b) => {
+      const hasEmail = $b.find(LOGIN_INPUTS).length > 0;
+      if (!hasEmail) {
+        // Interstitial or slow render: try one soft reload once
+        cy.reload();
+      }
+    });
 
-  // submit
-  cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, {
-    timeout: 60000,
-  })
-    .scrollIntoView()
-    .click({ force: true });
+    // type email
+    cy.get(LOGIN_INPUTS, { timeout: 60000 })
+      .filter(':visible')
+      .first()
+      .clear()
+      .type(username, { delay: 40 });
+
+    // type password
+    cy.get(PASS_INPUTS, { timeout: 60000 })
+      .filter(':visible')
+      .first()
+      .clear()
+      .type(password, { log: false });
+
+    // submit
+    cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
+      .scrollIntoView()
+      .click({ force: true });
+  });
 
   // post-login landmark (accept /home or /playlists)
   cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should('be.visible');
@@ -56,6 +69,7 @@ const ensureLoggedIn = () =>
   cy.session(SESSION_ID, login, {
     cacheAcrossSpecs: true,
     validate() {
+      // skip recreating if we can reach /playlists (or we’re already there)
       cy.request({ url: '/playlists', failOnStatusCode: false })
         .its('status')
         .should('be.oneOf', [200, 302]);
