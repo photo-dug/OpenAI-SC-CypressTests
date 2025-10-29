@@ -525,10 +525,11 @@ it('06 – Click track #1 to start playback', () => {
 
   after(() => {
     // Flush batched requests and results in one place
-    cy
-      .then(() => { for (const r of requests) cy.task('recordRequest', r); })
-      .then(() => cy.task('flushResults'))
-      .then((outPath) => { cy.log(`Results written to ${outPath}`); });
+      cy
+    .then(() => { for (const r of requests) cy.task('recordRequest', r); })
+    .then(() => cy.task('flushResults'))                    // returns the path string
+    .then((outPath) => {                                    // <-- capture it here
+      cy.log(`Results written to ${outPath}`);
       // (optional) also drop a small pointer file so you can click/open it easily
       cy.writeFile('cypress/reports/_results_pointer.txt', String(outPath) + '\n', { log: false });
   });
