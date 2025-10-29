@@ -3,7 +3,8 @@ const username = Cypress.env('SC_USERNAME') || '';
 const password = Cypress.env('SC_PASSWORD') || '';
 
 /* ---------- login with a versioned session ---------- */
-const SESSION_VERSION const SESSION_VERSION = 'v2'; // bump when you change login()
+const SESSION_VERSION; 
+const SESSION_VERSION = 'v2'; // bump when you change login()
 const SESSION_ID = [`sc-login:${SESSION_VERSION}`, username];
 const LOGIN_INPUTS = [
   'input[type="email"]',
