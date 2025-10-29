@@ -8,16 +8,16 @@ const SESSION_ID = [`sc-login:${SESSION_VERSION}`, username];
 const LOGIN_INPUTS = [
   'input[type="email"]',
   'input[name="email"]',
-  'input[placeholder*="mail" i]',
-  'input[id*="email" i]',
+  'input[placeholder*="mail"]',
+  'input[id*="email"]',
   '.username-container input'
 ].join(', ');
 
 const PASS_INPUTS = [
   'input[type="password"]',
   'input[name="password"]',
-  'input[placeholder*="password" i]',
-  'input[id*="password" i]'
+  'input[placeholder*="password"]',
+  'input[id*="password"]'
 ].join(', ');
 
 const login = () => {
