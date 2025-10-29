@@ -532,4 +532,6 @@ it('06 – Click track #1 to start playback', () => {
       cy.log(`Results written to ${outPath}`);
       // (optional) also drop a small pointer file so you can click/open it easily
       cy.writeFile('cypress/reports/_results_pointer.txt', String(outPath) + '\n', { log: false });
+      });
+    });
   });
