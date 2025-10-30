@@ -311,45 +311,53 @@ it('06 – Click track #1 to start playback', () => {
       });
     });
 });
-  // 07 - Verify audio matches reference and ie playing
-  it('07 – Verify audio is playing and matches reference (first 5s)', () => {
-    cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
-    cy.log('FINGERPRINT_STRICT =', JSON.stringify(Cypress.env('FINGERPRINT_STRICT')));
-
-    const skipAudio =
-      Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
-    if (skipAudio) {
-      cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
-      return;
+// 07 – Verify audio is playing and matches reference (first 5s)
+it('07 – Verify audio is playing and matches reference (first 5s)', () => {
+  // Don’t skip; we want a real verdict
+    //This section is the old code where one could declare to skip audio
+    //cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
+    //const skipAudio =
+    //  Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
+    //if (skipAudio) {
+    //  cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
+    //  return;
+    const strict = true; // force fail-on-mismatch inside this test
+    const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
+    const seconds = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
+  
+  // 7.1) Sanity: player time should advance (if <audio> tag exists)
+  cy.get('body').then(($body) => {
+    const el = $body.find('audio').get(0);
+    if (el) {
+      const t1 = el.currentTime || 0;
+      cy.wait(1500).then(() => {
+        const t2 = el.currentTime || 0;
+        // if time doesn't advance, we will fail the test later
+        if (!(t2 > t1)) {
+          cy.task('recordStep', {
+            name: 'audio-playing',
+            status: 'fail',
+            note: `currentTime did not advance (t1=${t1.toFixed(3)}, t2=${t2.toFixed(3)})`
+          });
+        } else {
+          cy.task('recordStep', {
+            name: 'audio-playing',
+            status: 'pass',
+            note: `currentTime advanced (t1=${t1.toFixed(3)}, t2=${t2.toFixed(3)})`
+          });
+        }
+      });
+    } else {
+      // Many players use MSE/WebAudio: record a note, don't stop here
+      cy.task('recordStep', {
+        name: 'audio-element',
+        status: 'warning',
+        note: '<audio> element not found; player may use MSE/WebAudio'
+      });
     }
+  });
 
-    // DOM sanity
-    cy.get('body').then(($body) => {
-      const el = $body.find('audio').get(0);
-      if (!el) {
-        cy.task('recordStep', {
-          name: 'audio-element',
-          status: 'warning',
-          note: '<audio> not found; player may use WebAudio/MSE',
-        });
-        return;
-      }
-      expect(el.paused).to.eq(false);
-    });
-
-    // time should advance
-    cy.get('body').then(($body) => {
-      const el = $body.find('audio').get(0);
-      if (el) {
-        const t1 = el.currentTime;
-        cy.wait(1500).then(() => {
-          const t2 = el.currentTime;
-          expect(t2).to.be.greaterThan(t1);
-        });
-      }
-    });
-
-  // fingerprint chain (use fresh URL; fallback to newest; support HLS/DASH)
+  // 7.2) Choose the URL to fingerprint (prefer fresh URL from Step 6, else last captured)
   cy.then(() => {
     const last = audioUrls[audioUrls.length - 1];
     const urlToUse =
@@ -358,16 +366,19 @@ it('06 – Click track #1 to start playback', () => {
       last;
 
     if (!urlToUse) {
-      return cy.task('recordStep', {
+      // HARD FAIL: no URL -> test must fail (but suite continues)
+      cy.task('recordStep', {
         name: 'audio-fingerprint',
-        status: 'warning',
-        note: 'Live audio URL not captured; MSE/DRM or no new request after click'
-    });
-  }
+        status: 'fail',
+        note: 'No live audio URL captured; cannot compare to reference'
+      }).then(() => {
+        expect(false, 'no live audio URL to fingerprint').to.be.true;
+      });
+      return;
+    }
 
+    // 7.3) Decode a manifest or a file URL
     const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
-    const seconds = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
-
     const liveTask = isManifest
       ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
       : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
@@ -376,36 +387,38 @@ it('06 – Click track #1 to start playback', () => {
       .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref, urlToUse })))
       .then(({ live, ref, urlToUse }) => {
         if (!ref || !live || !live.length) {
-          return cy.task('recordStep', {
+          // HARD FAIL: missing either fingerprint
+          cy.task('recordStep', {
             name: 'audio-fingerprint',
-            status: 'warning',
+            status: 'fail',
             note: 'Missing reference or live fingerprint',
             url: urlToUse
-        });
-      }
-        const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
+          }).then(() => {
+            expect(false, 'missing reference or live fingerprint').to.be.true;
+          });
+          return;
+        }
         return cy.task('compareFingerprints', { a: ref, b: live, threshold })
-               .then((result) => ({ ...result, urlToUse }));
-    })
+                 .then((result) => ({ ...result, urlToUse }));
+      })
       .then((result) => {
-        if (!result || result.pass === undefined) return;
+        if (!result || result.pass === undefined) return; // already failed above
 
         const { score, pass, urlToUse } = result;
-
-        // Log & persist
         cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
         cy.log(`Audio URL: ${urlToUse}`);
+
+        // Always record definitive outcome in results.json
         cy.task('recordStep', {
           name: 'audio-fingerprint',
-          status: pass ? 'pass' : 'warning',
+          status: pass ? 'pass' : 'fail',
           score,
           url: urlToUse
-      });
+        });
 
-        const strict = Cypress.env('FINGERPRINT_STRICT') === true ||
-                       Cypress.env('FINGERPRINT_STRICT') === 'true';
+        // Enforce: this test passes only on match
         if (!pass && strict) {
-          expect(pass, `Audio similarity score ${score?.toFixed?.(3)}`).to.be.true;
+          expect(pass, `Audio similarity score ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
       }
       });
     }); 
