@@ -378,66 +378,69 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
 
   // 7.2) Choose the URL to fingerprint (prefer fresh URL from Step 6, else last captured)
   cy.then(() => {
-    const last = audioUrls[audioUrls.length - 1];
-    const urlToUse =
-      currentAudioUrl ||
-      (audioUrls.find((u) => /\.m3u8(\?|$)/i.test(u)) || audioUrls.find((u) => /\.mpd(\?|$)/i.test(u))) ||
-      last;
+   const recent = audioHits.filter(h => h.ts >= (clickMark - 200));
 
-    if (!urlToUse) {
-      // HARD FAIL: no URL -> test must fail (but suite continues)
-      cy.task('recordStep', {
-        name: 'audio-fingerprint',
-        status: 'fail',
-        note: 'No live audio URL captured; cannot compare to reference'
-      }).then(() => {
-        expect(false, 'no live audio URL to fingerprint').to.be.true;
-      });
-      return;
+    // pick in priority order:
+    const m3u8 = recent.find(h => /\.m3u8(\?|$)/i.test(h.url));
+    const mpd  = recent.find(h => /\.mpd(\?|$)/i.test(h.url));
+    const file = recent.find(h => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
+    const seg  = recent.find(h => /\.(m4s|ts)(\?|$)/i.test(h.url));
+    const candidate =
+    (currentAudioUrl && !String(currentAudioUrl).startsWith('blob:') && { url: currentAudioUrl }) ||
+    m3u8 || mpd || file || seg || recent[recent.length - 1];
+
+  if (!candidate) {
+    cy.task('recordStep', {
+      name: 'audio-fingerprint',
+      status: 'fail',
+      note: 'No live audio URL captured after click; cannot compare'
+    }).then(() => expect(false, 'no live audio URL to fingerprint').to.be.true);
+    return;
     }
 
     // 7.3) Decode a manifest or a file URL
-    const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
-    const liveTask = isManifest
-      ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
-      : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
+    
+  const urlToUse = candidate.url;
+  const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
+  const seconds   = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
+  const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
 
-    return liveTask
-      .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref, urlToUse })))
-      .then(({ live, ref, urlToUse }) => {
-        if (!ref || !live || !live.length) {
-          // HARD FAIL: missing either fingerprint
-          cy.task('recordStep', {
-            name: 'audio-fingerprint',
-            status: 'fail',
-            note: 'Missing reference or live fingerprint',
-            url: urlToUse
-          }).then(() => {
-            expect(false, 'missing reference or live fingerprint').to.be.true;
-          });
-          return;
-        }
-        return cy.task('compareFingerprints', { a: ref, b: live, threshold })
-                 .then((result) => ({ ...result, urlToUse }));
-      })
-      .then((result) => {
-        if (!result || result.pass === undefined) return; // already failed above
+  const liveTask = isManifest
+    ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
+    : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
 
-        const { score, pass, urlToUse } = result;
-        cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
-        cy.log(`Audio URL: ${urlToUse}`);
-
-        // Always record definitive outcome in results.json
+  return liveTask
+    .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref, urlToUse })))
+    .then(({ live, ref, urlToUse }) => {
+      if (!ref || !live || !live.length) {
         cy.task('recordStep', {
           name: 'audio-fingerprint',
-          status: pass ? 'pass' : 'fail',
-          score,
+          status: 'fail',
+          note: 'Missing reference or live fingerprint',
           url: urlToUse
+        }).then(() => expect(false, 'missing reference or live fingerprint').to.be.true);
+        return;
+      }
+      return cy.task('compareFingerprints', { a: ref, b: live, threshold })
+               .then((result) => ({ ...result, urlToUse }));
+    })
+    .then((result) => {
+      if (!result || result.pass === undefined) return; // already failed above
+      const { score, pass, urlToUse } = result;
+
+      // always log + persist
+      cy.log(`Audio similarity: ${score?.toFixed?.(3) || 'n/a'}`);
+      cy.log(`Audio URL: ${urlToUse}`);
+      cy.task('recordStep', {
+        name: 'audio-fingerprint',
+        status: pass ? 'pass' : 'fail',
+        score,
+        url: urlToUse
         });
 
         // Enforce: this test passes only on match
-        if (!pass && strict) {
-          expect(pass, `Audio similarity score ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
+      if (!pass) {
+        expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
       }
       });
     }); 
