@@ -78,8 +78,10 @@ const ensureLoggedIn = () =>
 
 /* ---------- globals ---------- */
 let audioUrls = [];
+let audioHits = [];  // [{ url, ts, ct }], newest last
 let requests = [];
 let currentAudioUrl = null;
+let clickMark = 0;
 
 /* ---------- helpers ---------- */
 const goToProjects = () => {
@@ -162,7 +164,6 @@ describe('SoundCredit – Login → Play → Logout', () => {
   // Capture requests WITHOUT calling cy.task() inside the callback
   cy.intercept('GET', '**', (req) => {
     const startedAt = Date.now();
-
     req.on('response', (res) => {
       const ct  = String(res.headers['content-type'] || '').toLowerCase();
       const url = req.url.toLowerCase();
@@ -188,7 +189,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
       const durationMs = Date.now() - startedAt;  // ✅ define it here
 
       if (looksAudio || urlLike || segLike) {
-        audioUrls.push(req.url);                  // keep raw URL (not lowercased)
+        audioHits.push({ url: req.url, ts: Date.now(), ct: ct || '(n/a)' });   // keep raw URL (not lowercased)
       }
 
       // Stash; flush later in `after()`
@@ -196,8 +197,7 @@ describe('SoundCredit – Login → Play → Logout', () => {
         url: req.url,
         method: req.method,
         status: res.statusCode,
-        durationMs,
-      });
+        durationMs,});
     });
   });
 
@@ -297,6 +297,7 @@ it('06 – Click track #1 to start playback', () => {
         .find('.fas.fa-play, .fa-play.mr-2')
         .first()
         .click({ force: true });
+          clickMark = Date.now();
     })
     .then(() => cy.wait(750))
     .then(() => {
@@ -309,6 +310,24 @@ it('06 – Click track #1 to start playback', () => {
         const newOnes = audioUrls.slice(prev);
         if (newOnes.length) currentAudioUrl = newOnes[newOnes.length - 1];
       });
+        // try to harvest a direct src if present (ignore blob:)
+  cy.get('body').then(($b) => {
+    const el = $b.find('audio').get(0);
+    if (el && el.currentSrc && !String(el.currentSrc).startsWith('blob:')) {
+      currentAudioUrl = el.currentSrc; // a direct file url (mp3/aac/…)
+    }
+  });
+
+  // as a backstop, sweep Resource Timing once
+  cy.window().then((w) => {
+    const names = (w.performance?.getEntriesByType?.('resource') || [])
+      .map((e) => ({ name: e.name, startTime: e.startTime }));
+    const hits = names
+      .filter((e) =>
+        /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(e.name)
+      )
+      .map((e) => ({ url: e.name, ts: Date.now(), ct: '(resource)' }));
+    if (hits.length) audioHits.push(...hits);
     });
 });
 // 07 – Verify audio is playing and matches reference (first 5s)
