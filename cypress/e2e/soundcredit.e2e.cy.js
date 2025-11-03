@@ -329,6 +329,7 @@ it('06 – Click track #1 to start playback', () => {
       .map((e) => ({ url: e.name, ts: Date.now(), ct: '(resource)' }));
     if (hits.length) audioHits.push(...hits);
     });
+  }); 
 });
 // 07 – Verify audio is playing and matches reference (first 5s)
 it('07 – Verify audio is playing and matches reference (first 5s)', () => {
