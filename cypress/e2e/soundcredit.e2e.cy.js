@@ -403,7 +403,6 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
   const isManifest = /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
   const seconds   = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
   const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
-
   const liveTask = isManifest
     ? cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
     : cy.task('fingerprintAudioFromUrl', urlToUse, { timeout: 120000 });
