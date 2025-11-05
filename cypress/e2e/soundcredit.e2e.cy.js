@@ -188,24 +188,29 @@ describe('SoundCredit – Login → Play → Logout', () => {
 
       const durationMs = Date.now() - startedAt;
       requests.push({ url: req.url, method: req.method, status: res.statusCode, durationMs });
-      //if (looksAudio || urlLike || segLike) {
-        //audioHits.push({ url: req.url, ts: Date.now(), ct: ct || '(n/a)' });   // keep raw URL (not lowercased)
+         if (looksAudio || urlLike || segLike) {
+        // keep raw (not lowercased) to preserve any signed query
+        audioUrls.push(req.url);
       }
-
+      
+      // ✅ define durationMs in this scope BEFORE using it
+      const durationMs = Date.now() - startedAt;
+    
       // Stash; flush later in `after()`
       requests.push({
         url: req.url,
         method: req.method,
         status: res.statusCode,
-        durationMs,});
+        durationMs
+      });
     });
   });
 
   // Stable layout; DOM ready
-  cy.viewport(1800, 900);
+  cy.viewport(2000, 1000);
   cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
-  // Pre-warm reference (non-fatal)
+  // Pre-warm reference (non-fatal. do NOT .catch on Cypress chainables)
   cy.task('referenceFingerprint');
 });
 
