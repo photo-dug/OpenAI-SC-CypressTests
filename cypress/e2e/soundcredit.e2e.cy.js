@@ -399,148 +399,95 @@ describe("SoundCredit – Login → Play → Logout", () => {
       });
   });
 
-  // 07 – Verify audio is playing and matches reference (first 5s)
-  it("07 – Verify audio is playing and matches reference (first 5s)", () => {
-    // Don’t skip; we want a real verdict
-    //This section is the old code where one could declare to skip audio
-    //cy.log('SKIP_AUDIO =', JSON.stringify(Cypress.env('SKIP_AUDIO')));
-    //const skipAudio =
-    //  Cypress.env('SKIP_AUDIO') === true || Cypress.env('SKIP_AUDIO') === 'true';
-    //if (skipAudio) {
-    //  cy.task('recordStep', { name: 'audio-fingerprint', status: 'skipped', note: 'SKIP_AUDIO=true' });
-    //  return;
-    const strict = true; // force fail-on-mismatch inside this test
-    const threshold = Number(Cypress.env("FINGERPRINT_THRESHOLD") ?? 0.9);
-    const seconds = Number(Cypress.env("FINGERPRINT_SECONDS") ?? 5);
+// 07 – Verify audio is playing and matches reference (first 5s)
+it('07 – Verify audio is playing and matches reference (first 5s)', () => {
+  const strict    = Boolean(Cypress.env('FINGERPRINT_STRICT')) || true; // fail on mismatch
+  const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
+  const seconds   = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
 
-    // 7.1) Sanity: player time should advance (if <audio> tag exists)
-    cy.get("body").then(($body) => {
-      const el = $body.find("audio").get(0);
-      if (el) {
-        const t1 = el.currentTime || 0;
-        cy.wait(1500).then(() => {
-          const t2 = el.currentTime || 0;
-          // if time doesn't advance, we will fail the test later
-          if (!(t2 > t1)) {
-            cy.task("recordStep", {
-              name: "audio-playing",
-              status: "fail",
-              note: `currentTime did not advance (t1=${t1.toFixed(3)}, t2=${t2.toFixed(3)})`,
-            });
-          } else {
-            cy.task("recordStep", {
-              name: "audio-playing",
-              status: "pass",
-              note: `currentTime advanced (t1=${t1.toFixed(3)}, t2=${t2.toFixed(3)})`,
-            });
-          }
-        });
-      } else {
-        // Many players use MSE/WebAudio: record a note, don't stop here
-        cy.task("recordStep", {
-          name: "audio-element",
-          status: "warning",
-          note: "<audio> element not found; player may use MSE/WebAudio",
-        });
-      }
+  // 7.1 Sanity: if <audio> exists, its time should advance
+  cy.get('body').then(($body) => {
+    const el = $body.find('audio').get(0);
+    if (!el) {
+      return cy.task('recordStep', {
+        name: 'audio-element',
+        status: 'warning',
+        note: '<audio> not found or blob: src; assuming HLS/WebAudio'
+      });
+    }
+    const t1 = el.currentTime || 0;
+    return cy.wait(1500).then(() => {
+      const t2 = el.currentTime || 0;
+      cy.task('recordStep', {
+        name: 'audio-playing',
+        status: t2 > t1 ? 'pass' : 'fail',
+        note: `t1=${t1.toFixed(2)} → t2=${t2.toFixed(2)}`
+      }).then(() => {
+        if (!(t2 > t1) && strict) {
+          expect(false, `playback did not advance (t1=${t1.toFixed(2)} → t2=${t2.toFixed(2)})`).to.be.true;
+        }
+      });
     });
+  });
 
-    // 7.2) Choose the URL to fingerprint (prefer fresh URL from Step 6, else last captured)
-    cy.then(() => {
-      // Only consider requests at/after the click (allow 200ms skew)
-      const recent = audioHits.filter((h) => h.ts >= clickMark - 200);
+  // 7.2 Choose a post-click media URL to fingerprint (from audioHits/clickMark)
+  cy.then(() => {
+    const recent = (audioHits || []).filter(h => h && h.ts >= (clickMark - 200));
 
-      // prefer manifest → file → segment → otherwise last seen
-      const m3u8 = recent.find((h) => /\.m3u8(\?|$)/i.test(h.url));
-      const mpd = recent.find((h) => /\.mpd(\?|$)/i.test(h.url));
-      const file = recent.find((h) => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
-      const seg = recent.find((h) => /\.(m4s|ts)(\?|$)/i.test(h.url));
+    const m3u8 = recent.find(h => /\.m3u8(\?|$)/i.test(h.url));
+    const mpd  = recent.find(h => /\.mpd(\?|$)/i.test(h.url));
+    const file = recent.find(h => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
+    const seg  = recent.find(h => /\.(m4s|ts)(\?|$)/i.test(h.url));
 
-      const candidate =
-        (currentAudioUrl &&
-          !String(currentAudioUrl).startsWith("blob:") && {
-            url: currentAudioUrl,
-          }) ||
-        m3u8 ||
-        mpd ||
-        file ||
-        seg ||
-        recent[recent.length - 1];
+    const preferDirect = (u) => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
+    const cand =
+      preferDirect(currentAudioUrl) ||
+      m3u8 || mpd || file || seg || recent[recent.length - 1];
 
-      if (!candidate) {
-        cy.task("recordStep", {
-          name: "audio-fingerprint",
-          status: "fail",
-          note: "No live audio URL captured after click; cannot compare",
-        }).then(() => {
-          // fail Step 7 but the suite will continue
-          expect(false, "no live audio URL to fingerprint").to.be.true;
-        });
-        return;
-      }
+    if (!cand) {
+      return cy.task('recordStep', {
+        name: 'audio-fingerprint',
+        status: 'fail',
+        note: 'No post-click media URL captured to fingerprint'
+      }).then(() => {
+        if (strict) expect(false, 'no media URL to fingerprint').to.be.true;
+      });
+    }
 
-      // 7.3) Decode a manifest or a file URL
+    const urlToUse = cand.url;
+    cy.log(`Fingerprinting: ${urlToUse}`);
 
-      const urlToUse = candidate.url;
-      const isManifest =
-        /\.m3u8(\?|$)/i.test(urlToUse) || /\.mpd(\?|$)/i.test(urlToUse);
-      const seconds = Number(Cypress.env("FINGERPRINT_SECONDS") ?? 5);
-      const threshold = Number(Cypress.env("FINGERPRINT_THRESHOLD") ?? 0.9);
-      const liveTask = isManifest
-        ? cy.task(
-            "fingerprintMedia",
-            { url: urlToUse, seconds },
-            { timeout: 120000 },
-          )
-        : cy.task("fingerprintAudioFromUrl", urlToUse, { timeout: 120000 });
-
-      return liveTask
-        .then((live) =>
-          cy
-            .task("referenceFingerprint")
-            .then((ref) => ({ live, ref, urlToUse })),
-        )
-        .then(({ live, ref, urlToUse }) => {
-          if (!ref || !live || !live.length) {
-            cy.task("recordStep", {
-              name: "audio-fingerprint",
-              status: "fail",
-              note: "Missing reference or live fingerprint",
-              url: urlToUse,
-            }).then(
-              () =>
-                expect(false, "missing reference or live fingerprint").to.be
-                  .true,
-            );
-            return;
-          }
-          return cy
-            .task("compareFingerprints", { a: ref, b: live, threshold })
-            .then((result) => ({ ...result, urlToUse }));
-        })
-        .then((result) => {
-          if (!result || result.pass === undefined) return; // already failed above
-          const { score, pass, urlToUse } = result;
-
-          // always log + persist
-          cy.log(`Audio similarity: ${score?.toFixed?.(3) || "n/a"}`);
-          cy.log(`Audio URL: ${urlToUse}`);
-          cy.task("recordStep", {
-            name: "audio-fingerprint",
-            status: pass ? "pass" : "fail",
-            score,
-            url: urlToUse,
+    // 7.3 Decode first N seconds with ffmpeg and compare to reference
+    return cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
+      .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
+      .then(({ live, ref }) => {
+        if (!ref || !live || !live.length) {
+          return cy.task('recordStep', {
+            name: 'audio-fingerprint',
+            status: 'fail',
+            note: 'Missing reference or could not decode live media'
+          }).then(() => {
+            if (strict) expect(false, 'missing reference or live fingerprint').to.be.true;
           });
-
-          // enforce: Step 7 fails on mismatch, but the suite continues to 8–10
-          if (!pass) {
-            expect(
-              pass,
-              `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`,
-            ).to.be.true;
-          }
+        }
+        return cy.task('compareFingerprints', { a: ref, b: live, threshold });
+      })
+      .then((res) => {
+        if (!res) return;
+        const { score, pass } = res;
+        cy.log(`Audio similarity: ${score?.toFixed?.(3)} (threshold ${threshold})`);
+        cy.task('recordStep', {
+          name: 'audio-fingerprint',
+          status: pass ? 'pass' : 'fail',
+          score,
+          url: urlToUse
         });
-    });
+        if (!pass && strict) {
+          expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
+        }
+      });
+  });
+}); 
 
     // 08 – Verify bottom player controls (icon-based, container-agnostic)
     it("08 – Verify bottom player controls", () => {
