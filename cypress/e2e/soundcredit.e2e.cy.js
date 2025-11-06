@@ -164,50 +164,47 @@ before(() => {
   cy.intercept('GET', '**', (req) => {
     const startedAt = System.now ? System.now() : Date.now();
 
-    req.on('response', (res) => {
-      const ct  = String(res.headers['content-type'] || '').toLowerCase();
-      const url = (req.url || '').toLowerCase();
+req.on('response', (res) => {
+  const ct  = String(res.headers['content-type'] || '').toLowerCase();
+  const url = (req.url || '').toLowerCase();
 
-      // MIME-based detection
-      const looksAudio =
-        ct.includes('audio') ||
-        ct.includes('application/vnd.mpegurl') ||
-        ct.includes('application/vnd.apple.mpegurl') ||
-        ct.includes('application/dash+xml') ||
-        ct.includes('video/mp2t') ||
-        ct.includes('application/octet-stream');
+  // MIME-based
+  const looksAudio =
+    ct.includes('audio') ||
+    ct.includes('application/vnd.apple.mpegurl') ||   // HLS .m3u8
+    ct.includes('application/dash+xml') ||            // DASH .mpd
+    ct.includes('video/mp2t') ||                      // TS segments
+    ct.includes('application/octet-stream');          // sometimes segments
 
-      // Path-based hints (extensions)
-      const urlLike =
-        url.includes('.mp3') ||
-        url.includes('.aac') ||
-        url.includes('.ogg') ||
-        url.includes('.wav') ||
-        url.includes('.m3u8') ||
-        url.includes('.mpd');
+  // Path-based
+  const urlLike =
+    url.includes('.mp3') || url.includes('.aac') || url.includes('.ogg') ||
+    url.includes('.wav') || url.includes('.m3u8') || url.includes('.mpd');
 
-      // Segment patterns
-      const segLike =
-        /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(?:\?|$)/i.test(url) ||
-        /(?:^|[?&])(segment|seg|part)=/i.test(url) ||
-        /\/(init|chunk|seg)\w*\./i.test(url);
+  // Segment patterns
+  const segLike =
+    /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(url) ||
+    /segment=|chunk=|init\.mp4|frag/i.test(url);
 
-      // Compute duration once, then push one request record
-      const durationMs = Date.now() - (typeof startedAt === 'number' ? started inish : startedAt);
+  // If you use audioHits elsewhere, capture with a timestamp too:
+  // if (looksAudio || urlLike || segLike) audioHits.push({ url: req.url, ts: Date.now(), ct: ct || '(n/a)' });
 
-      if (looksAudio || urlLike || segLike) {
-        // keep raw (not lowercased) to preserve signed query params
-        audioUrls.push(req.url);
-      }
+  if (looksAudio || urlLike || segLike) {
+    // keep raw URL (not lowercased) to preserve signed query params
+    audioUrls.push(req.url);
+  }
 
-      requests.push({
-        url: req.url,
-        method: req.method,
-        status: res.statusCode,
-        durationMs,
-      });
+  // ✅ compute once, then push once
+  const durationMs = Date.now() - startedAt;
+
+  requests.push({
+    url: req.url,
+    method: req.method,
+    status: res.statusCode,
+    durationMs,
     });
   });
+});
 
   // Stable layout; DOM ready
   cy.viewport(2000, 1000);
