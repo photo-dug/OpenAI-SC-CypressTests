@@ -152,56 +152,59 @@ describe('SoundCredit – Login → Play → Logout', () => {
     expect(true).to.eq(true);
   });
 
-  before(() => {
+before(() => {
   expect(username, 'SC_USERNAME env var').to.be.a('string').and.not.be.empty;
   expect(password, 'SC_PASSWORD env var').to.be.a('string').and.not.be.empty;
 
-  // Clear cached sessions only in the App (avoids “session already exists”)
-  if (Cypress.config('isInteractive') && Cypress.session?.clearAllSavedSessions) {
-    Cypress.session.clearAllSavedSessions();
-  }
+  // Clear cached sessions only in the App (avoids “already initialized” in cypress open)
+  if (Cypress && Cypress.config && Cypress.config('isInteractive') && Cypress.session?.clearAll)
+    Cypress.session.clearAll?.();
 
-  // Capture requests WITHOUT calling cy.task() inside the callback
+  // Capture requests WITHOUT calling cy.task() in this callback
   cy.intercept('GET', '**', (req) => {
-    const startedAt = Date.now();
+    const startedAt = System.now ? System.now() : Date.now();
+
     req.on('response', (res) => {
       const ct  = String(res.headers['content-type'] || '').toLowerCase();
-      const url = req.url.toLowerCase();
+      const url = (req.url || '').toLowerCase();
 
-      // MIME-based
+      // MIME-based detection
       const looksAudio =
         ct.includes('audio') ||
-        ct.includes('application/vnd.apple.mpegurl') ||   // HLS .m3u8
-        ct.includes('application/dash+xml') ||            // DASH .mpd
-        ct.includes('video/mp2t') ||                      // TS segments
-        ct.includes('application/octet-stream');          // segments sometimes
+        ct.includes('application/vnd.mpegurl') ||
+        ct.includes('application/vnd.apple.mpegurl') ||
+        ct.includes('application/dash+xml') ||
+        ct.includes('video/mp2t') ||
+        ct.includes('application/octet-stream');
 
-      // Path-based
+      // Path-based hints (extensions)
       const urlLike =
-        url.includes('.mp3') || url.includes('.aac') || url.includes('.ogg') ||
-        url.includes('.wav') || url.includes('.m3u8') || url.includes('.mpd');
+        url.includes('.mp3') ||
+        url.includes('.aac') ||
+        url.includes('.ogg') ||
+        url.includes('.wav') ||
+        url.includes('.m3u8') ||
+        url.includes('.mpd');
 
       // Segment patterns
       const segLike =
-        /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(\?|$)/i.test(url) ||
-        /segment=|chunk=|init\.mp4|frag/i.test(url);
+        /\.(m3u8|mpd|m4s|ts|aac|mp3|ogg|wav)(?:\?|$)/i.test(url) ||
+        /(?:^|[?&])(segment|seg|part)=/i.test(url) ||
+        /\/(init|chunk|seg)\w*\./i.test(url);
 
-      const durationMs = Date.now() - startedAt;
-      requests.push({ url: req.url, method: req.method, status: res.statusCode, durationMs });
-         if (looksAudio || urlLike || segLike) {
-        // keep raw (not lowercased) to preserve any signed query
+      // Compute duration once, then push one request record
+      const durationMs = Date.now() - (typeof startedAt === 'number' ? started inish : startedAt);
+
+      if (looksAudio || urlLike || segLike) {
+        // keep raw (not lowercased) to preserve signed query params
         audioUrls.push(req.url);
       }
-      
-      // ✅ define durationMs in this scope BEFORE using it
-      const durationMs = Date.now() - startedAt;
-    
-      // Stash; flush later in `after()`
+
       requests.push({
         url: req.url,
         method: req.method,
         status: res.statusCode,
-        durationMs
+        durationMs,
       });
     });
   });
@@ -210,9 +213,10 @@ describe('SoundCredit – Login → Play → Logout', () => {
   cy.viewport(2000, 1000);
   cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
-  // Pre-warm reference (non-fatal. do NOT .catch on Cypress chainables)
+  // Pre-warm reference (non-fatal; don’t chain .catch on Cypress commands)
   cy.task('referenceFingerprint');
 });
+
 
   it('01 – Login page loads & capture nav timing', () => {
     cy.visit('/login');
