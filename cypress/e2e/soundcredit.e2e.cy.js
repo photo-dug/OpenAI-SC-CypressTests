@@ -447,7 +447,8 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
         expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
       }
       });
-    }); 
+    });
+   });
     
   // 08 – Verify bottom player controls (icon-based, container-agnostic)  
   it('08 – Verify bottom player controls', () => {
