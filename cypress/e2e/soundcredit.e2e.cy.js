@@ -113,10 +113,9 @@ const goToProjects = () => {
     }
 
     // Last resort: direct visit
-      return cy.visit('/playlists', { failOnStatusCode: false });
-
-      .then(() =>
-        cy.url({ timeout: 60000 }).should("match", /\/playlists(?:[/?#]|$)/),
+cy.visit('/playlists', { failOnStatusCode: false });
+cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
+return;
       );
   });
 };
