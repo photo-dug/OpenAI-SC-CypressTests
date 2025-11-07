@@ -113,8 +113,8 @@ const goToProjects = () => {
     }
 
     // Last resort: direct visit
-    return cy
-      .visit("/playlists", { failOnStatusCode: false })
+      return cy.visit('/playlists', { failOnStatusCode: false });
+
       .then(() =>
         cy.url({ timeout: 60000 }).should("match", /\/playlists(?:[/?#]|$)/),
       );
@@ -180,21 +180,17 @@ describe("SoundCredit – Login → Play → Logout", () => {
     expect(password, "SC_PASSWORD env var").to.be.a("string").and.not.be.empty;
 
     // Clear cached sessions only in the App (avoids “already initialized” in cypress open)
-    if (
-      Cypress &&
-      Cypress.config &&
-      Cypress.config("isInteractive") &&
-      Cypress.session?.clearAll
-    )
-      Cypress.session.clearAll?.();
+     if (Cypress.config('isInteractive') && Cypress.session?.clearAllSavedSessions) {
+      Cypress.session.clearAllSavedSessions();
+   }
 
     // Capture requests WITHOUT calling cy.task() in this callback
-    cy.intercept("GET", "**", (req) => {
-      const startedAt = System.now ? System.now() : Date.now();
+    cy.intercept('GET', '**', (req) => {
+      const startedAt = Date.now();
 
-      req.on("response", (res) => {
-        const ct = String(res.headers["content-type"] || "").toLowerCase();
-        const url = (req.url || "").toLowerCase();
+      req.on('response', (res) => {
+        const ct  = String(res.headers['content-type'] || '').toLowerCase();
+        const url = (req.url || '').toLowerCase();
 
         // MIME-based
         const looksAudio =
@@ -221,26 +217,27 @@ describe("SoundCredit – Login → Play → Logout", () => {
         // If you use audioHits elsewhere, capture with a timestamp too:
         // if (looksAudio || urlLike || segLike) audioHits.push({ url: req.url, ts: Date.now(), ct: ct || '(n/a)' });
 
-        if (looksAudio || urlLike || segLike) {
-          // keep raw URL (not lowercased) to preserve signed query params
-          audioUrls.push(req.url);
-        }
+            if (looksAudio || urlLike || segLike) {
+            // keep RAW URL to preserve signed query params
+            audioUrls.push(req.url);
+            // (optional) if you’re using audioHits elsewhere, add:
+          // audioHits.push({ url: req.url, ts: Date.now(), ct: ct || '(n/a)' });
+    }
 
-        // ✅ compute once, then push once
-        const durationMs = Date.now() - startedAt;
+    const durationMs = Date.now() - startedAt;       // compute once
 
-        requests.push({
-          url: req.url,
-          method: req.method,
-          status: res.statusCode,
-          durationMs,
-        });
-      });
+    requests.push({                                  // and push once
+      url: req.url,
+      method: req.method,
+      status: res.statusCode,
+      durationMs,
     });
+  });
+});
 
     // Stable layout; DOM ready
-    cy.viewport(2000, 1000);
-    cy.document({ log: false }).its("readyState").should("eq", "complete");
+cy.viewport(1366, 900);
+cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
     // Pre-warm reference (non-fatal; don’t chain .catch on Cypress commands)
     cy.task("referenceFingerprint");
@@ -486,8 +483,9 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
           expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
         }
       });
-  });
-}); 
+    });
+  }); 
+});
 
     // 08 – Verify bottom player controls (icon-based, container-agnostic)
     it("08 – Verify bottom player controls", () => {
@@ -626,7 +624,7 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
 
       cy.url({ timeout: 60000 }).should("match", /\/login(?:[/?#]|$)/);
       cy.get(
-        'input[type="email"], input[name="email"], input[placeholder*="mail" i]',
+        'input[type="email"], input[name="email"], input[placeholder*="mail"]',
         { timeout: 10000 },
       ).should("exist");
       cy.get('input[type="password"], input[name="password"]', {
