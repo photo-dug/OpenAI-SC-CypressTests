@@ -116,7 +116,7 @@ const goToProjects = () => {
 cy.visit('/playlists', { failOnStatusCode: false });
 cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
 return;
-      );
+  }); // <-- new
   });
 };
 
