@@ -391,8 +391,18 @@ cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
 // 07 – Verify audio is playing and matches reference (first 5s)
 it('07 – Verify audio is playing and matches reference (first 5s)', () => {
-  cy.task('referenceFingerprint').then(ref => {
-  expect(ref, 'reference fingerprint (restart cypress if null)').to.not.eq(null);
+// hard-fail Step 07 if the reference fingerprint is missing
+cy.task('referenceFingerprint').then((ref) => {
+  if (!ref) {
+    cy.task('recordStep', {
+      name: 'audio-fingerprint',
+      status: 'fail',
+      note: 'Reference fingerprint is null. Ensure cypress/fixtures/reference.mp3 exists. Restart cypress after changing it.'
+    }).then(() => {
+      // fail this test, but suite continues
+      expect(ref, 'reference fingerprint (restart cypress if null)').to.not.eq(null);
+    });
+  }
 });
   const strict    = true; // force fail-on-mismatch in this test only
   const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
@@ -427,12 +437,10 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
   cy.then(() => {
     const recent = (audioHits || []).filter(h => h && h.ts >= (clickMark - 200));
     const preferDirect = u => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
-
     const m3u8 = recent.find(h => /\.m3u8(\?|$)/i.test(h.url));
     const mpd  = recent.find(h => /\.mpd(\?|$)/i.test(h.url));
     const file = recent.find(h => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
     const seg  = recent.find(h => /\.(m4s|ts)(\?|$)/i.test(h.url));
-
     const cand =
       preferDirect(currentAudioUrl) ||
       m3u8 || mpd || file || seg || recent[recent.length - 1];
@@ -484,28 +492,37 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
   });
 });
 
-// 08 – Verify bottom player controls (icon-based, scoped)
+// 08 – Verify bottom player controls (scoped & tolerant)
 it('08 – Verify bottom player controls', () => {
-  // wait for the audio bar container to exist
+  // wait for the audio bar to mount
   cy.get('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__', { timeout: 30000 })
-    .should('exist')
+    .should('be.visible')
     .then($bar => {
-      const $root = cy.wrap($bar);
+      const bar = cy.wrap($bar);
 
-      // controls: shuffle/back/play(or pause)/forward
-      $root.find('.fa-random, .fa-shuffle').should('exist');
-      $root.find('.fa-step-backward, .fa-backward').should('exist');
-      $root.find('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause').should('exist');
-      $root.find('.fa-step-forward, .fa-forward').should('exist');
+      // shuffle
+      bar.find('.fa-random, .fa-shuffle, [aria-label*="shuffle" i]').should('exist');
 
-      // progress slider/time
-      $root.find('[role="slider"], [class*="progress-slider"]').should('exist');
+      // back/rewind – cover a few FA variants and aria
+      bar.find(
+        '.fa-step-backward, .fa-backward, .fa-backward-step, [aria-label*="back" i], [aria-label*="rewind" i]'
+      ).should('exist');
 
-      // allow time formats like 0:02 or 00:02
-      cy.get('span').then($spans => {
-        const times = [...$spans]
-          .map(s => (s.textContent || '').trim())
-          .filter(t => /^\d{1,2}:\d{2}$/.test(t));
+      // play/pause – either is acceptable
+      bar.find('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause, [aria-label*="play" i], [aria-label*="pause" i]')
+        .should('exist');
+
+      // forward/skip – multiple variants + aria
+      bar.find(
+        '.fa-step-forward, .fa-forward, .fa-forward-step, [aria-label*="forward" i], [aria-label*="skip" i]'
+      ).should('exist');
+
+      // progress/slider/time
+      bar.find('[role="slider"], [class*="progress-slider"]').should('exist');
+
+      // at least one time label like 0:02 or 00:02
+      bar.find('span').then($spans => {
+        const times = [...$spans].map(s => (s.textContent || '').trim()).filter(t => /^\d{1,2}:\d{2}$/.test(t));
         expect(times.length, 'player time labels').to.be.greaterThan(0);
       });
     });
