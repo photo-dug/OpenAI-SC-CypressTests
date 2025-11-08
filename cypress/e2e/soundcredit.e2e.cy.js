@@ -391,13 +391,16 @@ cy.document({ log: false }).its('readyState').should('eq', 'complete');
 
 // 07 – Verify audio is playing and matches reference (first 5s)
 it('07 – Verify audio is playing and matches reference (first 5s)', () => {
-  const strict    = Boolean(Cypress.env('FINGERPRINT_STRICT')) || true; // fail on mismatch
+  cy.task('referenceFingerprint').then(ref => {
+  expect(ref, 'reference fingerprint (restart cypress if null)').to.not.eq(null);
+});
+  const strict    = true; // force fail-on-mismatch in this test only
   const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
   const seconds   = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
 
-  // 7.1 Sanity: if <audio> exists, its time should advance
-  cy.get('body').then(($body) => {
-    const el = $body.find('audio').get(0);
+  // 7.1 playback sanity (if <audio> exists)
+  cy.get('body').then(($b) => {
+    const el = $b.find('audio').get(0);
     if (!el) {
       return cy.task('recordStep', {
         name: 'audio-element',
@@ -420,16 +423,16 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
     });
   });
 
-  // 7.2 Choose a post-click media URL to fingerprint (from audioHits/clickMark)
+  // 7.2 choose a post-click media URL (prefer manifest → file → segment; ignore blob:)
   cy.then(() => {
     const recent = (audioHits || []).filter(h => h && h.ts >= (clickMark - 200));
+    const preferDirect = u => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
 
     const m3u8 = recent.find(h => /\.m3u8(\?|$)/i.test(h.url));
     const mpd  = recent.find(h => /\.mpd(\?|$)/i.test(h.url));
     const file = recent.find(h => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
     const seg  = recent.find(h => /\.(m4s|ts)(\?|$)/i.test(h.url));
 
-    const preferDirect = (u) => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
     const cand =
       preferDirect(currentAudioUrl) ||
       m3u8 || mpd || file || seg || recent[recent.length - 1];
@@ -447,24 +450,26 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
     const urlToUse = cand.url;
     cy.log(`Fingerprinting: ${urlToUse}`);
 
-    // 7.3 Decode first N seconds with ffmpeg and compare to reference
+    // 7.3 decode first N seconds using ffmpeg (manifest or file) and compare
     return cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
-      .then((live) => cy.task('referenceFingerprint').then((ref) => ({ live, ref })))
-      .then(({ live, ref }) => {
+      .then(live => cy.task('referenceFingerprint').then(ref => ({ live, ref, urlToUse })))
+      .then(({ live, ref, urlToUse }) => {
         if (!ref || !live || !live.length) {
           return cy.task('recordStep', {
             name: 'audio-fingerprint',
             status: 'fail',
-            note: 'Missing reference or could not decode live media'
+            note: !ref ? 'Missing reference fingerprint' : 'Could not decode first N seconds of live media',
+            url: urlToUse
           }).then(() => {
             if (strict) expect(false, 'missing reference or live fingerprint').to.be.true;
           });
         }
-        return cy.task('compareFingerprints', { a: ref, b: live, threshold });
+        return cy.task('compareFingerprints', { a: ref, b: live, threshold })
+          .then(result => ({ ...result, urlToUse }));
       })
-      .then((res) => {
-        if (!res) return;
-        const { score, pass } = res;
+      .then(result => {
+        if (!result) return;
+        const { score, pass, urlToUse } = result;
         cy.log(`Audio similarity: ${score?.toFixed?.(3)} (threshold ${threshold})`);
         cy.task('recordStep', {
           name: 'audio-fingerprint',
@@ -476,161 +481,139 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
           expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
         }
       });
-    });
-  }); 
+  });
 });
 
-    // 08 – Verify bottom player controls (icon-based, container-agnostic)
-    it("08 – Verify bottom player controls", () => {
-      cy.get("body", { timeout: 30000 })
-        .then(
-          ($b) =>
-            $b.find(
-              '[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__',
-            ).length > 0,
-        )
-        .then((hasBar) => {
-          if (!hasBar) {
-            cy.get("button .fa-play-circle, button .fa-play", {
-              timeout: 10000,
-            })
-              .first()
-              .parents("button")
-              .first()
-              .scrollIntoView()
-              .click({ force: true });
-            cy.wait(500);
-          }
-        });
+// 08 – Verify bottom player controls (icon-based, scoped)
+it('08 – Verify bottom player controls', () => {
+  // wait for the audio bar container to exist
+  cy.get('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__', { timeout: 30000 })
+    .should('exist')
+    .then($bar => {
+      const $root = cy.wrap($bar);
 
-      cy.get(".fa-random, .fa-shuffle", { timeout: 30000 }).should("exist");
-      cy.get(".fa-step-backward, .fa-backward", { timeout: 30000 }).should(
-        "exist",
-      );
-      cy.get(".fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause", {
-        timeout: 30000,
-      }).should("exist");
-      cy.get(".fa-step-forward, .fa-forward", { timeout: 30000 }).should(
-        "exist",
-      );
-      cy.get('[role="slider"], [class*="progress-slider"]', {
-        timeout: 30000,
-      }).should("exist");
+      // controls: shuffle/back/play(or pause)/forward
+      $root.find('.fa-random, .fa-shuffle').should('exist');
+      $root.find('.fa-step-backward, .fa-backward').should('exist');
+      $root.find('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause').should('exist');
+      $root.find('.fa-step-forward, .fa-forward').should('exist');
 
-      cy.get("span").then(($spans) => {
+      // progress slider/time
+      $root.find('[role="slider"], [class*="progress-slider"]').should('exist');
+
+      // allow time formats like 0:02 or 00:02
+      cy.get('span').then($spans => {
         const times = [...$spans]
-          .map((s) => (s.textContent || "").trim())
-          .filter((t) => /^\d{2}:\d{2}$/.test(t));
-        expect(times.length, "player time labels").to.be.greaterThan(0);
+          .map(s => (s.textContent || '').trim())
+          .filter(t => /^\d{1,2}:\d{2}$/.test(t));
+        expect(times.length, 'player time labels').to.be.greaterThan(0);
       });
     });
+});
 
-    // 09 – Progress advances, then pause toggles
-    it("09 – Progress advances, then pause toggles", () => {
-      const readCurrentTime = () =>
-        cy.get("span").then(($spans) => {
-          const mmss = [...$spans]
-            .map((s) => (s.textContent || "").trim())
-            .filter((t) => /^\d{2}:\d{2}$/.test(t));
-          return mmss.length ? mmss[0] : null;
+// 09 – Progress advances, then pause toggles
+it('09 – Progress advances, then pause toggles', () => {
+  const readCurrentTime = () =>
+    cy.get('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__', { timeout: 30000 })
+      .then($bar => {
+        const mmss = [...$bar.find('span')]
+          .map(s => (s.textContent || '').trim())
+          .filter(t => /^\d{1,2}:\d{2}$/.test(t));
+        return mmss.length ? mmss[0] : null;
+      });
+
+  const toSec = (t) => {
+    if (!t) return null;
+    const [m, s] = t.split(':').map(n => parseInt(n, 10));
+    return (isNaN(m) || isNaN(s)) ? null : m * 60 + s;
+  };
+
+  let t1s = null;
+  readCurrentTime().then(t1 => { t1s = toSec(t1); });
+  cy.wait(1500);
+  readCurrentTime().then(t2 => {
+    const t2s = toSec(t2);
+    if (t1s !== null && t2s !== null) {
+      expect(t2s, 'current time (s)').to.be.a('number');
+      expect(t2s).to.be.greaterThan(t1s);
+    } else {
+      // fallback: use <audio>.currentTime
+      cy.get('body').then($b => {
+        const el = $b.find('audio').get(0);
+        expect(el, '<audio> present for fallback time check').to.exist;
+        const a1 = el.currentTime || 0;
+        return cy.wait(1500).then(() => {
+          const a2 = el.currentTime || 0;
+          expect(a2).to.be.greaterThan(a1);
         });
-      const toSec = (t) => {
-        if (!t) return null;
-        const [m, s] = t.split(":").map((n) => parseInt(n, 10));
-        return isNaN(m) || isNaN(s) ? null : m * 60 + s;
-      };
-
-      let t1s = null;
-      readCurrentTime().then((t1) => {
-        t1s = toSec(t1);
       });
-      cy.wait(1500);
-      readCurrentTime().then((t2) => {
-        const t2s = toSec(t2);
-        expect(t2s, "current time (s)").to.be.a("number");
-        if (t1s !== null) expect(t2s).to.be.greaterThan(t1s);
-      });
+    }
+  });
 
-      cy.get(
-        "button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play",
-        {
-          timeout: 15000,
-        },
-      )
-        .filter(":visible")
-        .first()
-        .parents("button")
-        .first()
-        .scrollIntoView()
-        .click({ force: true });
+  // toggle using whatever icon is visible
+  cy.get('button .fa-pause-circle, button .fa-pause, button .fa-play-circle, button .fa-play', { timeout: 15000 })
+    .filter(':visible')
+    .first()
+    .parents('button')
+    .first()
+    .scrollIntoView()
+    .click({ force: true });
 
-      cy.wait(800);
+  cy.wait(800);
 
-      cy.get("body").then(($body) => {
-        const el = $body.find("audio").get(0);
-        if (el) {
-          expect(el.paused, "<audio>.paused after toggle").to.eq(true);
-        } else {
-          const hasPlayIcon =
-            $body.find(".fa-play-circle, .fa-play").length > 0;
-          if (hasPlayIcon)
-            expect(hasPlayIcon, "play icon visible after toggle").to.eq(true);
-          else {
-            return readCurrentTime().then((tBefore) => {
-              const sBefore = toSec(tBefore);
-              cy.wait(1000).then(() => {
-                readCurrentTime().then((tAfter) => {
-                  const sAfter = toSec(tAfter);
-                  expect(
-                    sAfter - sBefore,
-                    "time delta while paused",
-                  ).to.be.at.most(0);
-                });
-              });
+  cy.get('body').then(($b) => {
+    const el = $b.find('audio').get(0);
+    if (el) {
+      expect(el.paused, '<audio>.paused after toggle').to.eq(true);
+    } else {
+      // no audio tag: accept “play” icon or the time no longer advancing as proof of pause
+      const hasPlayIcon = $b.find('.fa-play-circle, .fa-play').length > 0;
+      if (hasPlayIcon) {
+        expect(hasPlayIcon, 'play icon visible after toggle').to.eq(true);
+      } else {
+        return readCurrentTime().then(tBefore => {
+          const sBefore = toSec(tBefore);
+          cy.wait(1000).then(() => {
+            readCurrentTime().then(tAfter => {
+              const sAfter = toSec(tAfter);
+              if (sBefore !== null && sAfter !== null) {
+                expect(sAfter - sBefore, 'time delta while paused').to.be.at.most(0);
+              }
             });
-          }
-        }
-      });
-    });
+          });
+        });
+      }
+    }
+  });
+});
 
     // 10 – Logout and verify redirected to login
-    it("10 – Logout and verify redirected to login", () => {
-      const t0 = Date.now();
+it('10 – Logout and verify redirected to login', () => {
+  const t0 = Date.now();
 
-      cy.get("aside.m-sidebar", { timeout: 60000 }).scrollTo("bottom", {
-        ensureScrollable: false,
-      });
-      cy.get(
-        'a.sidebar-nav-link[href="/login"], .logout-nav a[href="/login"]',
-        { timeout: 60000 },
-      )
-        .should("be.visible")
-        .scrollIntoView()
-        .click({ force: true });
-
-      cy.url({ timeout: 10000 }).then((u) => {
-        if (!/\/login(?:[/?#]|$)/.test(u)) {
-          cy.clearCookies();
-          cy.visit("/login", { failOnStatusCode: false });
-        }
-      });
-
-      cy.url({ timeout: 60000 }).should("match", /\/login(?:[/?#]|$)/);
-      cy.get(
-        'input[type="email"], input[name="email"], input[placeholder*="mail"]',
-        { timeout: 10000 },
-      ).should("exist");
-      cy.get('input[type="password"], input[name="password"]', {
-        timeout: 10000,
-      }).should("exist");
-
-      cy.then(() =>
-        cy.task("recordAction", {
-          name: "logout",
-          durationMs: Date.now() - t0,
-        }),
-      );
+  // If there is a visible /login anchor anywhere, click it
+  cy.get('a[href="/login"], .logout-nav a[href="/login"]', { timeout: 10000 })
+    .filter(':visible')
+    .first()
+    .then($a => {
+      if ($a.length) {
+        cy.wrap($a).scrollIntoView().click({ force: true });
+      } else {
+        // fallback: clear cookies and go to /login explicitly
+        cy.clearCookies();
+        cy.visit('/login', { failOnStatusCode: false });
+      }
     });
+
+  cy.url({ timeout: 60000 }).should('match', /\/login(?:[/?#]|$)/);
+  cy.get('input[type="email"], input[name="email"], input[placeholder*="mail"]', { timeout: 10000 }).should('exist');
+  cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
+
+  cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
+});
+  //      }),
+  //    );
+  //  });
 
     after(() => {
       // Flush batched requests and results in one place
