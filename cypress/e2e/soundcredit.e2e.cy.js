@@ -96,27 +96,21 @@ const goToProjects = () => {
     const sidebarLink = $b.find('a[href="/playlists"]')[0];
     if (sidebarLink) {
       cy.wrap(sidebarLink).scrollIntoView().click({ force: true });
-      return cy
-        .url({ timeout: 60000 })
-        .should("match", /\/playlists(?:[/?#]|$)/);
+      return cy.url({ timeout: 60000 }).should("match", /\/playlists(?:[/?#]|$)/);
     }
 
     // Footer “View all”
     const viewAllBtn = [...$b.find("button, .btn, [role=button]")].find((el) =>
-      /view\s*all/i.test((el.textContent || "").trim()),
+      /view\s*all/i.test((el.textContent || "").trim())
     );
     if (viewAllBtn) {
       cy.wrap(viewAllBtn).scrollIntoView().click({ force: true });
-      return cy
-        .url({ timeout: 60000 })
-        .should("match", /\/playlists(?:[/?#]|$)/);
+      return cy.url({ timeout: 60000 }).should("match", /\/playlists(?:[/?#]|$)/);
     }
 
     // Last resort: direct visit
-cy.visit('/playlists', { failOnStatusCode: false });
-cy.url({ timeout: 60000 }).should('match', /\/playlists(?:[/?#]|$)/);
-return;
-  }); // <-- new
+    cy.visit("/playlists", { failOnStatusCode: false });
+    return cy.url({ timeout: 60000 }).should("match", /\/playlists(?:[/?#]|$)/);
   });
 };
 
