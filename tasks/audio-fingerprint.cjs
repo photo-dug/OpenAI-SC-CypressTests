@@ -98,19 +98,27 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
 
 function registerAudioTasks(on, config) {
   on('task', {
-    async referenceFingerprint() {
+    async function referenceFingerprintTask(config) {
       try {
-        if (cachedRef) return cachedRef;
         const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-        if (!fs.existsSync(p)) return null;          // spec decides how to handle
-        const pcm = await decodeToPCMFromUrl(p);
-        cachedRef = fingerprintFromPCM(pcm);
-        return cachedRef;
-      } catch {
-        return null;                                  // never throw
-      }
-    },
+        if (!fs.existsSync(p)) return null;
+        const mtime = fs.statSync(p).mtimeMs;
+        const bump  = process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1';
+        const key   = `${p}:${mtime}:${bump}`;
+        if (cachedRef && cachedKey === key) return cachedRef;
 
+        const pcm = await decodeToPCMFromUrl(p);
+        cachedRef  = fingerprintFromPCM(pcm);
+        cachedKey  = key;
+        return cachedRef;
+  } catch {
+    return null;
+  }
+}
+function registerAudioTasks(on, config) {
+  on('task', {
+    referenceFingerprint() { return referenceFingerprintTask(config); },
+    
     // direct file/http audio (mp3/aac/ogg/wav) or local paths
     async fingerprintAudioFromUrl(url) {
       try {
