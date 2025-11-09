@@ -5,7 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Meyda = require('meyda');
 
-let cachedRef = null; // <— only once
+let cachedRef = null;
+let cachedKey = null;
 
 function pcmS16ToFloat32(buf) {
   const out = new Float32Array(buf.length / 2);
@@ -43,7 +44,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       '-hide_banner',
       '-loglevel', 'error',
 
-      // more resilient network behavior for HLS/DASH
+      // network resilience for HLS/DASH
       '-reconnect', '1',
       '-reconnect_streamed', '1',
       '-reconnect_at_eof', '1',
@@ -51,7 +52,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,httpproxy',
       '-allowed_extensions', 'ALL',
 
-      // cut first N seconds
+      // take first N seconds
       '-ss', '0',
       '-t', String(seconds),
 
@@ -96,29 +97,33 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
   return average(feats);
 }
 
-function registerAudioTasks(on, config) {
-  on('task', {
-    async function referenceFingerprintTask(config) {
-      try {
-        const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-        if (!fs.existsSync(p)) return null;
-        const mtime = fs.statSync(p).mtimeMs;
-        const bump  = process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1';
-        const key   = `${p}:${mtime}:${bump}`;
-        if (cachedRef && cachedKey === key) return cachedRef;
+async function referenceFingerprintTask(config) {
+  try {
+    const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+    if (!fs.existsSync(p)) return null;
 
-        const pcm = await decodeToPCMFromUrl(p);
-        cachedRef  = fingerprintFromPCM(pcm);
-        cachedKey  = key;
-        return cachedRef;
+    // cache-buster: file mtime + optional env bump
+    const mtime = fs.statSync(p).mtimeMs;
+    const bump  = process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1';
+    const key   = `${p}:${mtime}:${bump}`;
+
+    if (cachedRef && cachedKey === key) return cachedRef;
+
+    const pcm = await decodeToPCMFromUrl(p);
+    cachedRef  = fingerprintFromPCM(pcm);
+    cachedKey  = key;
+    return cachedRef;
   } catch {
     return null;
   }
 }
+
 function registerAudioTasks(on, config) {
   on('task', {
-    referenceFingerprint() { return referenceFingerprintTask(config); },
-    
+    referenceFingerprint() {
+      return referenceFingerprintTask(config);
+    },
+
     // direct file/http audio (mp3/aac/ogg/wav) or local paths
     async fingerprintAudioFromUrl(url) {
       try {
@@ -129,7 +134,7 @@ function registerAudioTasks(on, config) {
       }
     },
 
-    // HLS/DASH or any http(s) URL (let ffmpeg fetch and demux the first N seconds)
+    // HLS/DASH or any http(s) URL (let ffmpeg fetch & demux the first N seconds)
     async fingerprintMedia({ url, seconds = 5 }) {
       try {
         const pcm = await decodeToPCMFromUrl(url, seconds);
@@ -142,7 +147,7 @@ function registerAudioTasks(on, config) {
     compareFingerprints({ a, b, threshold = 0.9 }) {
       const score = cosine(a, b);
       return { score, pass: score >= threshold };
-    },
+    }
   });
 }
 
