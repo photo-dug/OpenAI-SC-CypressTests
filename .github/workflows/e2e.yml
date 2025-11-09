@@ -50,7 +50,7 @@ jobs:
           CYPRESS_FINGERPRINT_STRICT: 'true'
           CYPRESS_FINGERPRINT_SECONDS: '5'
           CYPRESS_FINGERPRINT_THRESHOLD: '0.90'
-          CYPRESS_REF_VERSION: '2'   # bump when you swap reference.mp3 in the GUI
+          CYPRESS_REF_VERSION: ${{ github.run_number }}
 
       - name: Upload Cypress artifacts
         if: ${{ always() }}
