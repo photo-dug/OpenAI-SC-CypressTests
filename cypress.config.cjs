@@ -16,6 +16,7 @@ module.exports = defineConfig({
     // Credentials (available via Cypress.env('SC_USERNAME'|'SC_PASSWORD'))
       SC_USERNAME: process.env.CYPRESS_SC_USERNAME ?? process.env.SC_USERNAME ?? '',
       SC_PASSWORD: process.env.CYPRESS_SC_PASSWORD ?? process.env.SC_PASSWORD ?? '',
+      REF_VERSION: process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1',
 
     // strictness: fail test 7 on mismatch when true
     FINGERPRINT_STRICT:
