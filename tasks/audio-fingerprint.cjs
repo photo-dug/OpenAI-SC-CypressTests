@@ -33,53 +33,44 @@ function cosine(a, b) {
   return na && nb ? dot / (na * nb) : 0;
 }
 
-/**
- * Decode a local path or http(s)/HLS/DASH URL to mono 16-bit PCM (Float32Array).
- */
+/** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). */
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const src = String(input);
-
     const args = [
       '-hide_banner',
       '-loglevel', 'error',
-
-      // network resilience for HLS/DASH
+      // HLS/DASH resilience
       '-reconnect', '1',
       '-reconnect_streamed', '1',
       '-reconnect_at_eof', '1',
       '-reconnect_delay_max', '2',
       '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,httpproxy',
       '-allowed_extensions', 'ALL',
-
       // take first N seconds
       '-ss', '0',
       '-t', String(seconds),
-
       '-i', src,
       '-vn',
       '-ac', '1',
       '-ar', String(sampleRate),
       '-f', 's16le',
-      'pipe:1',
+      'pipe:1'
     ];
 
     const ff = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks = [];
     let stderr = '';
 
-    ff.stdout.on('data', (d) => chunks.push(d));
-    ff.stderr.on('data', (d) => { stderr += d.toString(); });
-    ff.on('error', (err) => reject(err));
+    ff.stdout.on('data', d => chunks.push(d));
+    ff.stderr.on('data', d => { stderr += d.toString(); });
+    ff.on('error', reject);
     ff.on('close', (code) => {
       if (code === 0 && chunks.length) {
-        try {
-          return resolve(pcmS16ToFloat32(Buffer.concat(chunks)));
-        } catch (e) {
-          return reject(e);
-        }
+        try { return resolve(pcmS16ToFloat32(Buffer.concat(chunks))); }
+        catch (e) { return reject(e); }
       }
-      return reject(new Error(`ffmpeg exited ${code}. ${stderr || ''}`));
+      reject(new Error(`ffmpeg exited ${code}. ${stderr || ''}`));
     });
   });
 }
@@ -97,9 +88,7 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
   return average(feats);
 }
 
-let cachedRef = null;
-let cachedKey = null;
-
+/** recompute ref when file mtime/bump changes */
 async function referenceFingerprintTask(config) {
   try {
     const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
@@ -119,13 +108,14 @@ async function referenceFingerprintTask(config) {
     return null;
   }
 }
+
 function registerAudioTasks(on, config) {
   on('task', {
     referenceFingerprint() {
       return referenceFingerprintTask(config);
     },
 
-    // direct file/http audio (mp3/aac/ogg/wav) or local paths
+    /** direct file/http audio (mp3/aac/ogg/wav) or local paths */
     async fingerprintAudioFromUrl(url) {
       try {
         const pcm = await decodeToPCMFromUrl(url);
@@ -135,7 +125,7 @@ function registerAudioTasks(on, config) {
       }
     },
 
-    // HLS/DASH or any http(s) URL (let ffmpeg fetch & demux the first N seconds)
+    /** HLS/DASH or any http(s) URL: let ffmpeg fetch/demux first N seconds */
     async fingerprintMedia({ url, seconds = 5 }) {
       try {
         const pcm = await decodeToPCMFromUrl(url, seconds);
