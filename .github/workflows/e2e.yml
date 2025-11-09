@@ -47,10 +47,10 @@ jobs:
           config: baseUrl=https://portal.soundcredit.com
         env:
           # credentials (pass both plain and CYPRESS_ in case your config maps either)
-          SC_USERNAME: ${{ secrets.SC_USERNAME }}
-          SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
-          CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
-          CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
+          CYPRESS_FINGERPRINT_STRICT: 'true'
+          CYPRESS_FINGERPRINT_SECONDS: '5'
+          CYPRESS_FINGERPRINT_THRESHOLD: '0.90'
+          CYPRESS_REF_VERSION: '2'   # bump when you swap reference.mp3 in the GUI
 
           # toggles (set repo Variables → Actions if you want to control these globally)
           CYPRESS_SKIP_AUDIO: ${{ vars.SKIP_AUDIO || 'false' }}
