@@ -114,6 +114,16 @@ function registerAudioTasks(on, config) {
     referenceFingerprint() {
       return referenceFingerprintTask(config);
     },
+    statReference() {
+  try {
+    const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+    if (!fs.existsSync(p)) return { exists: false, path: p };
+    const st = fs.statSync(p);
+    return { exists: true, path: p, size: st.size, mtime: st.mtimeMs };
+  } catch (e) {
+    return { exists: false, error: String(e) };
+  }
+},
 
     /** direct file/http audio (mp3/aac/ogg/wav) or local paths */
     async fingerprintAudioFromUrl(url) {
