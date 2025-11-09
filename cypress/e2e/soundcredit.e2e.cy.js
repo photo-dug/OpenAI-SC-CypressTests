@@ -494,40 +494,45 @@ cy.task('referenceFingerprint').then((ref) => {
 
 // 08 – Verify bottom player controls (scoped & tolerant)
 it('08 – Verify bottom player controls', () => {
-  // wait for the audio bar to mount
   cy.get('[class*="AudioPlayerBar_"], .AudioPlayerBar_audio-player-bar__', { timeout: 30000 })
     .should('be.visible')
     .then($bar => {
-      const bar = cy.wrap($bar);
+      const has = (sel) => $bar.find(sel).length > 0;
+      const hasAria = (rx) => [...$bar.find('[aria-label]')]
+        .some(el => rx.test((el.getAttribute('aria-label') || '').trim()));
 
-      // shuffle
-      bar.find('.fa-random, .fa-shuffle, [aria-label*="shuffle" i]').should('exist');
+      // shuffle: icon OR aria-label (case-insensitive via JS)
+      expect(has('.fa-random, .fa-shuffle') || hasAria(/shuffle/i), 'shuffle control').to.eq(true);
 
-      // back/rewind – cover a few FA variants and aria
-      bar.find(
-        '.fa-step-backward, .fa-backward, .fa-backward-step, [aria-label*="back" i], [aria-label*="rewind" i]'
-      ).should('exist');
+      // back/rewind: cover several FA variants + aria
+      expect(
+        has('.fa-step-backward, .fa-backward, .fa-backward-step') || hasAria(/(back|rewind)/i),
+        'back/rewind control'
+      ).to.eq(true);
 
-      // play/pause – either is acceptable
-      bar.find('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause, [aria-label*="play" i], [aria-label*="pause" i]')
-        .should('exist');
+      // play/pause: either state + aria
+      expect(
+        has('.fa-play-circle, .fa-pause-circle, .fa-play, .fa-pause') || hasAria(/(play|pause)/i),
+        'play/pause control'
+      ).to.eq(true);
 
-      // forward/skip – multiple variants + aria
-      bar.find(
-        '.fa-step-forward, .fa-forward, .fa-forward-step, [aria-label*="forward" i], [aria-label*="skip" i]'
-      ).should('exist');
+      // forward/skip: FA variants + aria
+      expect(
+        has('.fa-step-forward, .fa-forward, .fa-forward-step') || hasAria(/(forward|skip)/i),
+        'forward/skip control'
+      ).to.eq(true);
 
-      // progress/slider/time
-      bar.find('[role="slider"], [class*="progress-slider"]').should('exist');
+      // progress/slider exists
+      expect(has('[role="slider"], [class*="progress-slider"]'), 'progress slider').to.eq(true);
 
       // at least one time label like 0:02 or 00:02
-      bar.find('span').then($spans => {
-        const times = [...$spans].map(s => (s.textContent || '').trim()).filter(t => /^\d{1,2}:\d{2}$/.test(t));
-        expect(times.length, 'player time labels').to.be.greaterThan(0);
-      });
+      const times = [...$bar.find('span')]
+        .map(s => (s.textContent || '').trim())
+        .filter(t => /^\d{1,2}:\d{2}$/.test(t));
+      expect(times.length, 'player time labels').to.be.greaterThan(0);
     });
 });
-
+  
 // 09 – Progress advances, then pause toggles
 it('09 – Progress advances, then pause toggles', () => {
   const readCurrentTime = () =>
