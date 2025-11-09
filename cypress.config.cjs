@@ -14,16 +14,23 @@ module.exports = defineConfig({
   },
   env: {
     // Credentials (available via Cypress.env('SC_USERNAME'|'SC_PASSWORD'))
-    SC_USERNAME: process.env.CYPRESS_SC_USERNAME ?? process.env.SC_USERNAME ?? '',
-    SC_PASSWORD: process.env.CYPRESS_SC_PASSWORD ?? process.env.SC_PASSWORD ?? '',
+      SC_USERNAME: process.env.CYPRESS_SC_USERNAME ?? process.env.SC_USERNAME ?? '',
+      SC_PASSWORD: process.env.CYPRESS_SC_PASSWORD ?? process.env.SC_PASSWORD ?? '',
 
-    // Strictness toggle (warn by default)
+    // strictness: fail test 7 on mismatch when true
     FINGERPRINT_STRICT:
       (process.env.CYPRESS_FINGERPRINT_STRICT ?? process.env.FINGERPRINT_STRICT) === 'true',
-
-    // Audio skip toggle
+  
+    // skip toggle (kept for completeness; your step 7 now forces strict anyway)
     SKIP_AUDIO: (process.env.CYPRESS_SKIP_AUDIO ?? process.env.SKIP_AUDIO ?? 'false'),
-  }, // <-- keep this comma
+
+    // 🔽 add these convenience envs
+    FINGERPRINT_SECONDS: process.env.CYPRESS_FINGERPRINT_SECONDS ?? process.env.FINGERPRINT_SECONDS ?? '5',
+    FINGERPRINT_THRESHOLD: process.env.CYPRESS_FINGERPRINT_THRESHOLD ?? process.env.FINGERPRINT_THRESHOLD ?? '0.90',
+
+  // cache-buster for reference.mp3 in the plugin process
+  REF_VERSION: process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1',
+},
 
   e2e: {
     baseUrl: 'https://portal.soundcredit.com',
