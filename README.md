@@ -13,7 +13,12 @@ CYPRESS_SC_USERNAME="dougross@me.com" \
 CYPRESS_SC_PASSWORD="Gn^8hbr3w" \
 CYPRESS_FINGERPRINT_STRICT: 'true'
 CYPRESS_SKIP_AUDIO=false \
-npx cypress open
+npx cypress open 
+```
+Or the change the path to the config file
+```
+npx cypress open --config-file <path/to/your/new/cypress.config.js>
+npx cypress open --config-file /Users/dougross/Documents/Code/GPT/GitHub/cypress.config.cjs 
 ```
 
 ## What it does
