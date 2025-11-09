@@ -392,17 +392,33 @@ cy.document({ log: false }).its('readyState').should('eq', 'complete');
 // 07 – Verify audio is playing and matches reference (first 5s)
 it('07 – Verify audio is playing and matches reference (first 5s)', () => {
 // hard-fail Step 07 if the reference fingerprint is missing
-cy.task('referenceFingerprint').then((ref) => {
-  if (!ref) {
+// Step 7 guard: prove the reference exists and decodes
+cy.task('statReference').then(info => {
+  cy.log(`ref path: ${info.path || '(unknown)'}`);
+  if (!info.exists) {
     cy.task('recordStep', {
       name: 'audio-fingerprint',
       status: 'fail',
-      note: 'Reference fingerprint is null. Ensure cypress/fixtures/reference.mp3 exists. Restart cypress after changing it.'
+      note: 'reference.mp3 not found at expected path'
     }).then(() => {
-      // fail this test, but suite continues
-      expect(ref, 'reference fingerprint (restart cypress if null)').to.not.eq(null);
+      expect(false, `reference fingerprint (restart cypress if null)`).to.be.true;
     });
+    return;
   }
+  cy.log(`ref size=${info.size} mtime=${info.mtime}`);
+
+  // try a quick decode to explain nulls
+  cy.task('probeReferenceDecode').then(probe => {
+    if (!probe || probe.ok !== true) {
+      cy.task('recordStep', {
+        name: 'audio-fingerprint',
+        status: 'fail',
+        note: `reference decode failed: ${(probe && probe.error) || 'unknown'}`
+      }).then(() => {
+        expect(false, `reference fingerprint (restart cypress if null)`).to.be.true;
+      });
+    }
+  });
 });
   const strict    = true; // force fail-on-mismatch in this test only
   const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
