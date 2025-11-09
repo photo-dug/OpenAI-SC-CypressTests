@@ -5,8 +5,6 @@
 npm i
 export SC_USERNAME="<username>"
 export SC_PASSWORD="<password>"
-# Default: fingerprint mismatches are warnings; to fail locally:
-# export FINGERPRINT_STRICT=true
 # Place the reference MP3 at cypress/fixtures/reference.mp3
 npm test
 ```
