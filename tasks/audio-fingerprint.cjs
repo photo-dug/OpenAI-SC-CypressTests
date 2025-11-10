@@ -89,8 +89,6 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
 }
 
 /** recompute ref when file mtime/bump changes */
-let cachedRef = null;
-let cachedKey = null;
 
 async function referenceFingerprintTask(config) {
   const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
