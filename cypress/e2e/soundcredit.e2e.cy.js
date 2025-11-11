@@ -21,24 +21,42 @@ const PASS_INPUTS = [
 ].join(", ");
 
 const login = () => {
-  // go to /login but don’t fail if the server returns a 30x or interstitial
-  cy.visit("/login", { failOnStatusCode: false });
+  // Always start here, but don't fail on 30x/interstitial
+  cy.visit('/login', { failOnStatusCode: false });
 
-  // if we’re already authenticated (redirected to /home or /playlists), short-circuit
+  // If already authenticated, short-circuit
   cy.url({ timeout: 15000 }).then((u) => {
-    if (/\/(home|playlists)(?:[/?#]|$)/.test(u)) {
-      // session is already valid — nothing to do
+    if (/\/(home|playlists)(?:[/?#]|$)/i.test(u)) {
       return;
     }
 
-    // otherwise we are really on /login: fill the form if inputs exist
-    cy.get("body", { timeout: 30000 }).then(($b) => {
-      const hasEmail = $b.find(LOGIN_INPUTS).length > 0;
-      if (!hasEmail) {
-        // Interstitial or slow render: try one soft reload once
-        cy.reload();
-      }
+    // Otherwise, fill the form (after one soft reload if needed)
+    cy.get('body', { timeout: 30000 }).then(($b) => {
+      if (!$b.find(LOGIN_INPUTS).length) cy.reload();
     });
+
+    cy.get(LOGIN_INPUTS, { timeout: 60000 })
+      .filter(':visible').first().clear().type(username, { delay: 40 });
+
+    cy.get(PASS_INPUTS, { timeout: 60000 })
+      .filter(':visible').first().clear().type(password, { log: false });
+
+    cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
+      .scrollIntoView().click({ force: true });
+  });
+
+  // Post-login proof: accept either path (/home or /playlists) OR any of these stable UI landmarks
+  cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/i);
+  cy.get('body', { timeout: 60000 }).should(($b) => {
+    const txt = ($b.text() || '').toLowerCase();
+    const hasHomeHeading  = /home/.test(txt);
+    const hasProjects     = /projects/.test(txt);
+    const hasWelcome      = /good (morning|afternoon|evening)|welcome/.test(txt);
+    if (!(hasHomeHeading || hasProjects || hasWelcome)) {
+      throw new Error('Post-login UI not detected yet');
+    }
+  });
+};
 
     // type email
     cy.get(LOGIN_INPUTS, { timeout: 60000 })
@@ -648,10 +666,7 @@ it('10 – Logout and verify redirected to login', () => {
   cy.get('input[type="password"], input[name="password"]', { timeout: 10000 }).should('exist');
 
   cy.then(() => cy.task('recordAction', { name: 'logout', durationMs: Date.now() - t0 }));
-});
-  //      }),
-  //    );
-  //  });
+  });
 
     after(() => {
       // Flush batched requests and results in one place
