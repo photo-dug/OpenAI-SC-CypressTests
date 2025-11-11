@@ -37,17 +37,28 @@ function cosine(a, b) {
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const src = String(input);
+    const isHttp = /^https?:\/\//i.test(src);
+
+    // Always include the basics
     const args = [
       '-hide_banner',
-      '-loglevel', 'error',
-      // HLS/DASH resilience
-      '-reconnect', '1',
-      '-reconnect_streamed', '1',
-      '-reconnect_at_eof', '1',
-      '-reconnect_delay_max', '2',
-      '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,httpproxy',
-      '-allowed_extensions', 'ALL',
-      // take first N seconds
+      '-loglevel', 'error'
+    ];
+
+    // Only for http(s)/HLS/DASH inputs – NOT for local files
+    if (isHttp) {
+      args.push(
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_at_eof', '1',
+        '-reconnect_delay_max', '2',
+        '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,httpproxy',
+        '-allowed_extensions', 'ALL'
+      );
+    }
+
+    // Cut first N seconds and write raw s16le PCM to stdout
+    args.push(
       '-ss', '0',
       '-t', String(seconds),
       '-i', src,
@@ -56,7 +67,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       '-ar', String(sampleRate),
       '-f', 's16le',
       'pipe:1'
-    ];
+    );
 
     const ff = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks = [];
