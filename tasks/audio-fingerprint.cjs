@@ -155,7 +155,26 @@ function registerAudioTasks(on, config) {
       const score = cosine(a, b);
       return { score, pass: score >= threshold };
     }
-  });
-}
+  statReference() {
+    try {
+      const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+      if (!fs.existsSync(p)) return { exists: false, path: p };
+      const st = fs.statSync(p);
+      return { exists: true, path: p, size: st.size, mtime: st.mtimeMs };
+    } catch (e) {
+      return { exists: false, error: String(e) };
+    }
+  },
+
+  async probeReferenceDecode() {
+    try {
+      const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+      const pcm = await decodeToPCMFromUrl(p, 5);
+      return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0 };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  },
+});
 
 module.exports = { registerAudioTasks };
