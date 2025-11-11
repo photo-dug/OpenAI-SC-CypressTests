@@ -34,18 +34,29 @@ function cosine(a, b) {
 }
 
 /** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). */
+// tasks/audio-fingerprint.cjs
+const ffmpegPath = require('ffmpeg-static');
+const { spawn }   = require('node:child_process');
+const fs          = require('node:fs');
+const path        = require('node:path');
+const Meyda       = require('meyda');
+
+let cachedRef = null;
+let cachedKey = null;
+
+// (optional) small helpers: pcmS16ToFloat32, average, cosine …
+// …
+
+/**  <<< PASTE decodeToPCMFromUrl RIGHT HERE >>>  */
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
-    const src = String(input);
+    const src    = String(input);
     const isHttp = /^https?:\/\//i.test(src);
 
-    // Always include the basics
-    const args = [
-      '-hide_banner',
-      '-loglevel', 'error'
-    ];
+    // start with minimal args so local files decode everywhere
+    const args = ['-hide_banner', '-loglevel', 'error'];
 
-    // Only for http(s)/HLS/DASH inputs – NOT for local files
+    // add network/HLS/DASH flags only for http(s) URLs
     if (isHttp) {
       args.push(
         '-reconnect', '1',
@@ -57,7 +68,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       );
     }
 
-    // Cut first N seconds and write raw s16le PCM to stdout
+    // cut first N seconds to s16le PCM on stdout
     args.push(
       '-ss', '0',
       '-t', String(seconds),
@@ -78,13 +89,38 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     ff.on('error', reject);
     ff.on('close', (code) => {
       if (code === 0 && chunks.length) {
-        try { return resolve(pcmS16ToFloat32(Buffer.concat(chunks))); }
-        catch (e) { return reject(e); }
+        try {
+          // convert s16le → Float32
+          const out = new Float32Array(Buffer.concat(chunks).length / 2);
+          const buf = Buffer.concat(chunks);
+          for (let i = 0; i < out.length; i++) {
+            const s = buf.readInt16LE(i * 2);
+            out[i] = Math.max(-1, Math.min(1, s / 32768));
+          }
+          return resolve(out);
+        } catch (e) {
+          return reject(e);
+        }
       }
       reject(new Error(`ffmpeg exited ${code}. ${stderr || ''}`));
     });
   });
 }
+/**  <<< END paste >>>  */
+
+// keep fingerprintFromPCM(...) etc. here
+// …
+
+function registerAudioTasks(on, config) {
+  on('task', {
+    referenceFingerprint() { /* calls decodeToPCMFromUrl(local path) */ },
+    fingerprintMedia({ url, seconds = 5 }) { /* calls decodeToPCMFromUrl(url, seconds) */ },
+    fingerprintAudioFromUrl(url) { /* optional, also calls decodeToPCMFromUrl(url) */ },
+    compareFingerprints({ a, b, threshold = 0.9 }) { /* cosine compare */ }
+  });
+}
+
+module.exports = { registerAudioTasks };
 
 function fingerprintFromPCM(pcm, sampleRate = 16000) {
   const frameSize = 1024;
