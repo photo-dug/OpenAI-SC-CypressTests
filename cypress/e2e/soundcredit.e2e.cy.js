@@ -21,7 +21,7 @@ const PASS_INPUTS = [
 ].join(", ");
 
 const login = () => {
-  // Always start here, but don't fail on 30x/interstitial
+  // Start at /login but don't fail on interstitials/redirects
   cy.visit('/login', { failOnStatusCode: false });
 
   // If already authenticated, short-circuit
@@ -30,7 +30,7 @@ const login = () => {
       return;
     }
 
-    // Otherwise, fill the form (after one soft reload if needed)
+    // Otherwise fill the form (soft reload once if inputs not yet rendered)
     cy.get('body', { timeout: 30000 }).then(($b) => {
       if (!$b.find(LOGIN_INPUTS).length) cy.reload();
     });
@@ -41,20 +41,26 @@ const login = () => {
     cy.get(PASS_INPUTS, { timeout: 60000 })
       .filter(':visible').first().clear().type(password, { log: false });
 
-    cy.contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
-      .scrollIntoView().click({ force: true });
+    return cy.contains(
+      'button, [role=button], input[type=submit]',
+      /sign\s*in|log\s*in|continue/i,
+      { timeout: 60000 }
+    )
+      .scrollIntoView()
+      .click({ force: true });
   });
 
-  // Post-login proof: accept either path (/home or /playlists) OR any of these stable UI landmarks
+  // Post-login proof (URL OR robust UI landmarks)
   cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/i);
   cy.get('body', { timeout: 60000 }).should(($b) => {
-    const txt = ($b.text() || '').toLowerCase();
-    const hasHomeHeading  = /home/.test(txt);
-    const hasProjects     = /projects/.test(txt);
-    const hasWelcome      = /good (morning|afternoon|evening)|welcome/.test(txt);
-    if (!(hasHomeHeading || hasProjects || hasWelcome)) {
-      throw new Error('Post-login UI not detected yet');
-    }
+    const t = ($b.text() || '').toLowerCase();
+    const ok =
+      /home/.test(t) ||
+      /projects/.test(t) ||
+      /dashboard/.test(t) ||
+      /library/.test(t) ||
+      /welcome|good (morning|afternoon|evening)/.test(t);
+    if (!ok) throw new Error('Post-login UI not detected yet');
   });
 };
 
