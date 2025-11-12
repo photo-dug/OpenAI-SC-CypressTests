@@ -34,32 +34,14 @@ function cosine(a, b) {
 }
 
 /** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). */
-// tasks/audio-fingerprint.cjs
-const ffmpegPath = require('ffmpeg-static');
-const { spawn }   = require('node:child_process');
-const fs          = require('node:fs');
-const path        = require('node:path');
-const Meyda       = require('meyda');
-
-let cachedRef = null;
-let cachedKey = null;
-
-// (optional) small helpers: pcmS16ToFloat32, average, cosine …
-// …
-
-/**  <<< PASTE decodeToPCMFromUrl RIGHT HERE >>>  */
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
-    const src    = String(input);
+    const src = String(input);
     const isHttp = /^https?:\/\//i.test(src);
 
-    // start with minimal args (works for local files everywhere)
-    const args = [
-      '-hide_banner',
-      '-loglevel', 'error'
-    ];
+    const args = ['-hide_banner', '-loglevel', 'error'];
 
-    // only add HLS/DASH/network flags when the input is http(s)
+    // Only add network flags for http(s) inputs
     if (isHttp) {
       args.push(
         '-reconnect', '1',
@@ -71,7 +53,6 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       );
     }
 
-    // cut the first N seconds and write raw s16le PCM to stdout
     args.push(
       '-ss', '0',
       '-t', String(seconds),
@@ -93,14 +74,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     ff.on('close', (code) => {
       if (code === 0 && chunks.length) {
         try {
-          // convert s16le → Float32
-          const buf = Buffer.concat(chunks);
-          const out = new Float32Array(buf.length / 2);
-          for (let i = 0; i < out.length; i++) {
-            const s = buf.readInt16LE(i * 2);
-            out[i] = Math.max(-1, Math.min(1, s / 32768));
-          }
-          return resolve(out);
+          return resolve(pcmS16ToFloat32(Buffer.concat(chunks)));
         } catch (e) {
           return reject(e);
         }
@@ -109,18 +83,6 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     });
   });
 }
-/**  <<< END paste >>>  */
-
-function registerAudioTasks(on, config) {
-  on('task', {
-    referenceFingerprint() { /* calls decodeToPCMFromUrl(local path) */ },
-    fingerprintMedia({ url, seconds = 5 }) { /* calls decodeToPCMFromUrl(url, seconds) */ },
-    fingerprintAudioFromUrl(url) { /* optional, also calls decodeToPCMFromUrl(url) */ },
-    compareFingerprints({ a, b, threshold = 0.9 }) { /* cosine compare */ }
-  });
-}
-
-module.exports = { registerAudioTasks };
 
 function fingerprintFromPCM(pcm, sampleRate = 16000) {
   const frameSize = 1024;
@@ -136,38 +98,56 @@ function fingerprintFromPCM(pcm, sampleRate = 16000) {
 }
 
 /** recompute ref when file mtime/bump changes */
-
 async function referenceFingerprintTask(config) {
-  const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-  if (!fs.existsSync(p)) return null;
-  const mtime = fs.statSync(p).mtimeMs;
-  const bump  = process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1';
-  const key   = `${p}:${mtime}:${bump}`;
-  if (cachedRef && cachedKey === key) return cachedRef;
+  try {
+    const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+    if (!fs.existsSync(p)) return null;
 
-  const pcm = await decodeToPCMFromUrl(p);
-  cachedRef  = fingerprintFromPCM(pcm);
-  cachedKey  = key;
-  return cachedRef;
+    const mtime = fs.statSync(p).mtimeMs;
+    const bump  = process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1';
+    const key   = `${p}:${mtime}:${bump}`;
+
+    if (cachedRef && cachedKey === key) return cachedRef;
+
+    const pcm = await decodeToPCMFromUrl(p); // local file path
+    cachedRef  = fingerprintFromPCM(pcm);
+    cachedKey  = key;
+    return cachedRef;
+  } catch {
+    return null;
+  }
 }
 
 function registerAudioTasks(on, config) {
   on('task', {
+    // Diagnostics for Step 7 guard
+    statReference() {
+      try {
+        const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+        if (!fs.existsSync(p)) return { exists: false, path: p };
+        const st = fs.statSync(p);
+        return { exists: true, path: p, size: st.size, mtime: st.mtimeMs };
+      } catch (e) {
+        return { exists: false, error: String(e) };
+      }
+    },
+
+    async probeReferenceDecode() {
+      try {
+        const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+        const pcm = await decodeToPCMFromUrl(p, 5);
+        return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0 };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+
+    // Cached reference fingerprint (uses mtime + REF_VERSION cache key)
     referenceFingerprint() {
       return referenceFingerprintTask(config);
     },
-    statReference() {
-  try {
-    const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-    if (!fs.existsSync(p)) return { exists: false, path: p };
-    const st = fs.statSync(p);
-    return { exists: true, path: p, size: st.size, mtime: st.mtimeMs };
-  } catch (e) {
-    return { exists: false, error: String(e) };
-  }
-},
 
-    /** direct file/http audio (mp3/aac/ogg/wav) or local paths */
+    // Direct file/http audio (mp3/aac/ogg/wav) or local paths
     async fingerprintAudioFromUrl(url) {
       try {
         const pcm = await decodeToPCMFromUrl(url);
@@ -177,7 +157,7 @@ function registerAudioTasks(on, config) {
       }
     },
 
-    /** HLS/DASH or any http(s) URL: let ffmpeg fetch/demux first N seconds */
+    // HLS/DASH or any http(s) URL: let ffmpeg fetch/demux first N seconds
     async fingerprintMedia({ url, seconds = 5 }) {
       try {
         const pcm = await decodeToPCMFromUrl(url, seconds);
@@ -191,26 +171,7 @@ function registerAudioTasks(on, config) {
       const score = cosine(a, b);
       return { score, pass: score >= threshold };
     }
-  statReference() {
-    try {
-      const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-      if (!fs.existsSync(p)) return { exists: false, path: p };
-      const st = fs.statSync(p);
-      return { exists: true, path: p, size: st.size, mtime: st.mtimeMs };
-    } catch (e) {
-      return { exists: false, error: String(e) };
-    }
-  },
-
-  async probeReferenceDecode() {
-    try {
-      const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-      const pcm = await decodeToPCMFromUrl(p, 5);
-      return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0 };
-    } catch (e) {
-      return { ok: false, error: String(e) };
-    }
-  },
-});
+  });
+}
 
 module.exports = { registerAudioTasks };
