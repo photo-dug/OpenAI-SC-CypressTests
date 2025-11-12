@@ -53,10 +53,13 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     const src    = String(input);
     const isHttp = /^https?:\/\//i.test(src);
 
-    // start with minimal args so local files decode everywhere
-    const args = ['-hide_banner', '-loglevel', 'error'];
+    // start with minimal args (works for local files everywhere)
+    const args = [
+      '-hide_banner',
+      '-loglevel', 'error'
+    ];
 
-    // add network/HLS/DASH flags only for http(s) URLs
+    // only add HLS/DASH/network flags when the input is http(s)
     if (isHttp) {
       args.push(
         '-reconnect', '1',
@@ -68,7 +71,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       );
     }
 
-    // cut first N seconds to s16le PCM on stdout
+    // cut the first N seconds and write raw s16le PCM to stdout
     args.push(
       '-ss', '0',
       '-t', String(seconds),
@@ -91,8 +94,8 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       if (code === 0 && chunks.length) {
         try {
           // convert s16le → Float32
-          const out = new Float32Array(Buffer.concat(chunks).length / 2);
           const buf = Buffer.concat(chunks);
+          const out = new Float32Array(buf.length / 2);
           for (let i = 0; i < out.length; i++) {
             const s = buf.readInt16LE(i * 2);
             out[i] = Math.max(-1, Math.min(1, s / 32768));
@@ -107,9 +110,6 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   });
 }
 /**  <<< END paste >>>  */
-
-// keep fingerprintFromPCM(...) etc. here
-// …
 
 function registerAudioTasks(on, config) {
   on('task', {
