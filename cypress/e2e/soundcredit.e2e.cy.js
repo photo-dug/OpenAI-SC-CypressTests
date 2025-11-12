@@ -87,7 +87,6 @@ const login = () => {
       .scrollIntoView()
       .click({ force: true });
   });
- });
 
   // post-login landmark (accept /home or /playlists)
   cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should(
