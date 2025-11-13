@@ -16,7 +16,7 @@ function cosine(a, b) { /* unchanged */ }
 /** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). */   // ✅ remove the “/at top: …” text
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
-    const src = String(input);
+    const src    = String(input);
     const isHttp = /^https?:\/\//i.test(src);
 
     const doFfmpeg = (args, stdinStream /* optional */) => new Promise((res, rej) => {
@@ -40,10 +40,13 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       });
     });
 
+    // Base args – minimal for local files
     const args = ['-hide_banner', '-loglevel', 'error', '-nostdin'];
+
     if (isHttp) {
+      // Only for http(s)
       args.push(
-        '-rw_timeout', '15000000',
+        '-rw_timeout', '15000000', // 15s
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_at_eof', '1',
@@ -54,35 +57,56 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
         '-headers', 'Accept: audio/*\r\n'
       );
     }
+
     args.push('-ss', '0', '-t', String(seconds), '-i', src, '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 's16le', 'pipe:1');
 
-    // First try: direct URL
+    // First try: direct -i (URL or local path)
     doFfmpeg(args, null)
       .then(resolve)
       .catch((e1) => {
-        if (!isHttp) return reject(e1);
-        // Fallback: Node https → ffmpeg stdin
-        try {
-          const req = https.get(src, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
-              'Accept': 'audio/*,*/*;q=0.8'
+        if (isHttp) {
+          // For http(s), fallback: Node https → pipe into ffmpeg
+          try {
+            const req = https.get(src, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
+                'Accept': 'audio/*,*/*;q=0.8'
+              }
+            }, (res) => {
+              if (res.statusCode && res.statusCode >= 400) {
+                return reject(new Error(`HTTP ${res.statusCode} for ${src}`));
+              }
+              const argsPipe = [
+                '-hide_banner','-loglevel','error','-nostdin',
+                '-ss','0','-t',String(seconds),
+                '-i','pipe:0',
+                '-vn','-ac','1','-ar',String(sampleRate),
+                '-f','s16le','pipe:1'
+              ];
+              doFfmpeg(argsPipe, res).then(resolve).catch(reject);
+            });
+            req.on('error', reject);
+          } catch (e2) {
+            reject(e2);
+          }
+        } else {
+          // For local file, fallback: fs.createReadStream → pipe into ffmpeg
+          try {
+            if (!fs.existsSync(src)) {
+              return reject(new Error(`Local reference not found at ${src}`));
             }
-          }, (res) => {
-            if (res.statusCode && res.statusCode >= 400) {
-              return reject(new Error(`HTTP ${res.statusCode} for ${src}`));
-            }
+            const s = fs.createReadStream(src);
             const argsPipe = [
               '-hide_banner','-loglevel','error','-nostdin',
               '-ss','0','-t',String(seconds),
-              '-i','pipe:0','-vn','-ac','1','-ar',String(sampleRate),
+              '-i','pipe:0',
+              '-vn','-ac','1','-ar',String(sampleRate),
               '-f','s16le','pipe:1'
             ];
-            doFfmpeg(argsPipe, res).then(resolve).catch(reject);
-          });
-          req.on('error', reject);
-        } catch (e2) {
-          reject(e2);
+            doFfmpeg(argsPipe, s).then(resolve).catch(reject);
+          } catch (e2) {
+            reject(e2);
+          }
         }
       });
   });
