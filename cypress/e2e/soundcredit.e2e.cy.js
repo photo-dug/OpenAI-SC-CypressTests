@@ -394,28 +394,48 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
   const seconds   = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
 
   // --- Guard: reference must exist & decode --- (RETURN the chain)
-  return cy.task('statReference').then(info => {
-    if (!info || !info.exists) {
+ // -- Step 7 debug: always log reference details up front
+return cy.task('statReference').then(info => {
+  // write a debug row into results.json so you can see path/mtime/size in one place
+  cy.task('recordStep', {
+    name: 'audio-ref-debug',
+    status: info && info.exists ? 'pass' : 'fail',
+    path: info?.path,
+    size: info?.size,
+    mtime: info?.mtime
+  });
+
+  if (!info || !info.exists) {
+    return cy.task('recordStep', {
+      name: 'audio-fingerprint',
+      status: 'fail',
+      note: 'reference.mp3 not found at cypress/fixtures/reference.mp3'
+    }).then(() => {
+      // fail ONLY this test; suite continues
+      expect(false, 'reference fingerprint (restart cypress if null)').to.be.true;
+    });
+  }
+
+  return cy.task('probeReferenceDecode').then((probe) => {
+    // Always log the probe result verbosely
+    cy.task('recordStep', {
+      name: 'audio-ref-probe',
+      status: probe?.ok ? 'pass' : 'fail',
+      note: probe?.error || `samples=${probe?.samples}`,
+      samples: probe?.samples
+    });
+
+    if (!probe || probe.ok !== true) {
       return cy.task('recordStep', {
         name: 'audio-fingerprint',
         status: 'fail',
-        note: 'reference.mp3 not found at cypress/fixtures/reference.mp3'
+        note: `reference decode failed: ${probe?.error || 'unknown'}`
       }).then(() => {
-        expect(false, 'reference fingerprint (restart cypress if null)').to.be.true; // fail only Step 7
+        expect(false, 'reference fingerprint (restart cypress if null)').to.be.true;
       });
     }
-    return cy.task('probeReferenceDecode').then((probe) => {
-      if (!probe || probe.ok !== true) {
-        return cy.task('recordStep', {
-          name: 'audio-fingerprint',
-          status: 'fail',
-          note: `reference decode failed: ${(probe && probe.error) || 'unknown'}`
-        }).then(() => {
-          expect(false, 'reference fingerprint (restart cypress if null)').to.be.true; // fail only Step 7
-        });
-      }
-    });
-  })
+  });
+})
 
   // --- 7.1 playback sanity (if <audio> exists)
   .then(() => {
@@ -470,7 +490,12 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
 
     const urlToUse = cand.url;
     cy.log(`Fingerprinting: ${urlToUse}`);
-
+    cy.task('recordStep', {
+      name: 'audio-live-debug',
+      status: 'pass',
+      url: urlToUse,
+      seconds
+});
     // --- one-time live probe so the report shows the exact decode reason
     return cy.task('probeLiveDecode', { url: urlToUse, seconds }, { timeout: 120000 })
       .then(probe => {
