@@ -21,7 +21,7 @@ const PASS_INPUTS = [
 ].join(", ");
 
 const login = () => {
-  // Start at /login but don't fail on interstitials/redirects
+  // Always start at /login; don’t fail on interstitials/redirects
   cy.visit('/login', { failOnStatusCode: false });
 
   // If already authenticated, short-circuit
@@ -30,27 +30,33 @@ const login = () => {
       return;
     }
 
-    // Otherwise fill the form (soft reload once if inputs not yet rendered)
+    // Otherwise we’re really on /login: if inputs aren’t mounted yet, soft-reload once
     cy.get('body', { timeout: 30000 }).then(($b) => {
       if (!$b.find(LOGIN_INPUTS).length) cy.reload();
     });
 
+    // Fill email
     cy.get(LOGIN_INPUTS, { timeout: 60000 })
-      .filter(':visible').first().clear().type(username, { delay: 40 });
+      .filter(':visible')
+      .first()
+      .clear()
+      .type(username, { delay: 40 });
 
+    // Fill password
     cy.get(PASS_INPUTS, { timeout: 60000 })
-      .filter(':visible').first().clear().type(password, { log: false });
+      .filter(':visible')
+      .first()
+      .clear()
+      .type(password, { log: false });
 
-    return cy.contains(
-      'button, [role=button], input[type=submit]',
-      /sign\s*in|log\s*in|continue/i,
-      { timeout: 60000 }
-    )
+    // Submit
+    return cy
+      .contains('button, [role=button], input[type=submit]', /sign\s*in|log\s*in|continue/i, { timeout: 60000 })
       .scrollIntoView()
       .click({ force: true });
-  });
+  }); // ← exactly one closer for cy.url(...).then(...)
 
-  // Post-login proof (URL OR robust UI landmarks)
+  // Post-login proof: accept /home or /playlists AND check for robust UI landmarks
   cy.url({ timeout: 60000 }).should('match', /\/(home|playlists)(?:[/?#]|$)/i);
   cy.get('body', { timeout: 60000 }).should(($b) => {
     const t = ($b.text() || '').toLowerCase();
