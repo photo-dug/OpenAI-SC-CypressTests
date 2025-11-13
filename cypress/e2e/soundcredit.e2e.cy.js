@@ -69,38 +69,6 @@ const login = () => {
     if (!ok) throw new Error('Post-login UI not detected yet');
   });
 };
-
-    // type email
-    cy.get(LOGIN_INPUTS, { timeout: 60000 })
-      .filter(":visible")
-      .first()
-      .clear()
-      .type(username, { delay: 40 });
-
-    // type password
-    cy.get(PASS_INPUTS, { timeout: 60000 })
-      .filter(":visible")
-      .first()
-      .clear()
-      .type(password, { log: false });
-
-    // submit
-    cy.contains(
-      "button, [role=button], input[type=submit]",
-      /sign\s*in|log\s*in|continue/i,
-      { timeout: 60000 },
-    )
-      .scrollIntoView()
-      .click({ force: true });
-  });
-
-  // post-login landmark (accept /home or /playlists)
-  cy.contains(/home|projects|dashboard|library/i, { timeout: 60000 }).should(
-    "be.visible",
-  );
-  cy.url({ timeout: 60000 }).should("match", /\/(home|playlists)(?:[/?#]|$)/);
-};
-
 const ensureLoggedIn = () =>
   cy.session(SESSION_ID, login, {
     cacheAcrossSpecs: true,
