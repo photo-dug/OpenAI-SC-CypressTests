@@ -141,7 +141,14 @@ function registerAudioTasks(on, config) {
         return { ok: false, error: String(e) };
       }
     },
-
+    async probeLiveDecode({ url, seconds = 5 }) {
+      try {
+        const pcm = await decodeToPCMFromUrl(url, seconds);
+        return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0 };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+    }
+  },
     // Cached reference fingerprint (uses mtime + REF_VERSION cache key)
     referenceFingerprint() {
       return referenceFingerprintTask(config);
