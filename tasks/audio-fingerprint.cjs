@@ -39,17 +39,20 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     const src = String(input);
     const isHttp = /^https?:\/\//i.test(src);
 
-    const args = ['-hide_banner', '-loglevel', 'error'];
+    const args = ['-hide_banner', '-loglevel', 'error', '-nostdin'];
 
-    // Only add network flags for http(s) inputs
     if (isHttp) {
       args.push(
+        // network robustness
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_at_eof', '1',
         '-reconnect_delay_max', '2',
         '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,httpproxy',
-        '-allowed_extensions', 'ALL'
+        '-allowed_extensions', 'ALL',
+        // polite headers (some CDNs fuss without UA)
+        '-user_agent', 'Mozilla/5.0 (Cypress ffmpeg)',
+        '-headers', 'Accept: audio/*'
       );
     }
 
@@ -73,11 +76,8 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
     ff.on('error', reject);
     ff.on('close', (code) => {
       if (code === 0 && chunks.length) {
-        try {
-          return resolve(pcmS16ToFloat32(Buffer.concat(chunks)));
-        } catch (e) {
-          return reject(e);
-        }
+        try { return resolve(pcmS16ToFloat32(Buffer.concat(chunks))); }
+        catch (e) { return reject(e); }
       }
       reject(new Error(`ffmpeg exited ${code}. ${stderr || ''}`));
     });
