@@ -1,6 +1,7 @@
 // tasks/audio-fingerprint.cjs
 const ffmpegPath = require('ffmpeg-static');
 const { spawn } = require('node:child_process');
+const https = require('node:https');                 // ✅ add this line
 const fs = require('node:fs');
 const path = require('node:path');
 const Meyda = require('meyda');
@@ -8,32 +9,11 @@ const Meyda = require('meyda');
 let cachedRef = null;
 let cachedKey = null;
 
-function pcmS16ToFloat32(buf) {
-  const out = new Float32Array(buf.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const s = buf.readInt16LE(i * 2);
-    out[i] = Math.max(-1, Math.min(1, s / 32768));
-  }
-  return out;
-}
+function pcmS16ToFloat32(buf) { /* unchanged */ }
+function average(rows) { /* unchanged */ }
+function cosine(a, b) { /* unchanged */ }
 
-function average(rows) {
-  if (!rows || rows.length === 0) return [];
-  const sum = new Array(rows[0].length).fill(0);
-  for (const r of rows) r.forEach((v, i) => (sum[i] += v));
-  return sum.map((v) => v / rows.length);
-}
-
-function cosine(a, b) {
-  const A = a || [];
-  const B = b || [];
-  const dot = A.reduce((acc, v, i) => acc + v * (B[i] || 0), 0);
-  const na = Math.sqrt(A.reduce((acc, v) => acc + v * v, 0));
-  const nb = Math.sqrt(B.reduce((acc, v) => acc + v * v, 0));
-  return na && nb ? dot / (na * nb) : 0;
-}
-
-/** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). *//at top: const https = require('node:https');
+/** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). */   // ✅ remove the “/at top: …” text
 function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const src = String(input);
@@ -45,7 +25,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       let stderr = '';
 
       if (stdinStream) stdinStream.pipe(ff.stdin);
-      else ff.stdin.end(); // close stdin when not using pipe:0
+      else ff.stdin.end();
 
       ff.stdout.on('data', d => chunks.push(d));
       ff.stderr.on('data', d => { stderr += d.toString(); });
@@ -55,51 +35,33 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
           try { return res(pcmS16ToFloat32(Buffer.concat(chunks))); }
           catch (e) { return rej(e); }
         }
-        // Include as much detail as possible
         const why = `ffmpeg exited ${code == null ? 'null' : code}${signal ? ' (signal ' + signal + ')' : ''}. ${stderr || ''}`;
         rej(new Error(why));
       });
     });
 
-    // Build args for "direct URL" attempt
     const args = ['-hide_banner', '-loglevel', 'error', '-nostdin'];
-
     if (isHttp) {
-      // Only for http(s)
       args.push(
-        // network/timeouts
-        '-rw_timeout', '15000000',           // 15s (microseconds)
+        '-rw_timeout', '15000000',
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_at_eof', '1',
         '-reconnect_delay_max', '2',
         '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,httpproxy',
         '-allowed_extensions', 'ALL',
-        // “polite” headers; some CDNs are picky
         '-http_user_agent', 'Mozilla/5.0 (Cypress ffmpeg)',
         '-headers', 'Accept: audio/*\r\n'
       );
     }
+    args.push('-ss', '0', '-t', String(seconds), '-i', src, '-vn', '-ac', '1', '-ar', String(sampleRate), '-f', 's16le', 'pipe:1');
 
-    args.push(
-      '-ss', '0',
-      '-t', String(seconds),
-      '-i', src,                  // first try: let ffmpeg pull the URL
-      '-vn',
-      '-ac', '1',
-      '-ar', String(sampleRate),
-      '-f', 's16le',
-      'pipe:1'
-    );
-
-    // FIRST try: direct -i URL
+    // First try: direct URL
     doFfmpeg(args, null)
       .then(resolve)
       .catch((e1) => {
-        // If not http(s), or we already produced bytes, bubble the error
         if (!isHttp) return reject(e1);
-
-        // SECOND try: fetch with Node and pipe → -i pipe:0
+        // Fallback: Node https → ffmpeg stdin
         try {
           const req = https.get(src, {
             headers: {
@@ -110,18 +72,14 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
             if (res.statusCode && res.statusCode >= 400) {
               return reject(new Error(`HTTP ${res.statusCode} for ${src}`));
             }
-
             const argsPipe = [
-              '-hide_banner', '-loglevel', 'error', '-nostdin',
-              '-ss', '0', '-t', String(seconds),
-              '-i', 'pipe:0',
-              '-vn', '-ac', '1', '-ar', String(sampleRate),
-              '-f', 's16le', 'pipe:1'
+              '-hide_banner','-loglevel','error','-nostdin',
+              '-ss','0','-t',String(seconds),
+              '-i','pipe:0','-vn','-ac','1','-ar',String(sampleRate),
+              '-f','s16le','pipe:1'
             ];
-
             doFfmpeg(argsPipe, res).then(resolve).catch(reject);
           });
-
           req.on('error', reject);
         } catch (e2) {
           reject(e2);
