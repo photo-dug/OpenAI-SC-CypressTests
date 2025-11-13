@@ -160,15 +160,20 @@ function registerAudioTasks(on, config) {
       }
     },
 
-    async probeReferenceDecode() {
-      try {
-        const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
-        const pcm = await decodeToPCMFromUrl(p, 5);
-        return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0 };
-      } catch (e) {
-        return { ok: false, error: String(e) };
-      }
-    },
+async probeReferenceDecode() {
+  try {
+    const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+    const exists = fs.existsSync(p);
+    const st = exists ? fs.statSync(p) : null;
+    if (!exists) return { ok: false, error: `missing file at ${p}` };
+
+    const pcm = await decodeToPCMFromUrl(p, 5);
+    return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0, path: p, size: st.size, mtime: st.mtimeMs };
+  } catch (e) {
+    // e.message already includes "ffmpeg exited … <stderr>" because doFfmpeg builds it
+    return { ok: false, error: String(e) };
+  }
+},
 
     async probeLiveDecode({ url, seconds = 5 }) {
       try {
