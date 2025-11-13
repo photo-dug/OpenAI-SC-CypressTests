@@ -120,7 +120,7 @@ async function referenceFingerprintTask(config) {
 
 function registerAudioTasks(on, config) {
   on('task', {
-    // Diagnostics for Step 7 guard
+    // --- Diagnostics for Step 7 guard ---
     statReference() {
       try {
         const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
@@ -141,20 +141,22 @@ function registerAudioTasks(on, config) {
         return { ok: false, error: String(e) };
       }
     },
+
     async probeLiveDecode({ url, seconds = 5 }) {
       try {
         const pcm = await decodeToPCMFromUrl(url, seconds);
         return { ok: !!pcm && pcm.length > 0, samples: pcm ? pcm.length : 0 };
       } catch (e) {
         return { ok: false, error: String(e) };
-    }
-  },
-    // Cached reference fingerprint (uses mtime + REF_VERSION cache key)
+      }
+    },
+
+    // --- Cached reference fingerprint (mtime + REF_VERSION cache key) ---
     referenceFingerprint() {
       return referenceFingerprintTask(config);
     },
 
-    // Direct file/http audio (mp3/aac/ogg/wav) or local paths
+    // --- Decode and fingerprint a direct audio/file URL ---
     async fingerprintAudioFromUrl(url) {
       try {
         const pcm = await decodeToPCMFromUrl(url);
@@ -164,7 +166,7 @@ function registerAudioTasks(on, config) {
       }
     },
 
-    // HLS/DASH or any http(s) URL: let ffmpeg fetch/demux first N seconds
+    // --- Decode and fingerprint HLS/DASH/http(s) (first N seconds) ---
     async fingerprintMedia({ url, seconds = 5 }) {
       try {
         const pcm = await decodeToPCMFromUrl(url, seconds);
@@ -174,6 +176,7 @@ function registerAudioTasks(on, config) {
       }
     },
 
+    // --- Cosine similarity compare ---
     compareFingerprints({ a, b, threshold = 0.9 }) {
       const score = cosine(a, b);
       return { score, pass: score >= threshold };
