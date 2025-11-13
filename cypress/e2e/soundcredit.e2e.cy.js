@@ -465,92 +465,93 @@ return cy.task('statReference').then(info => {
   })
 
   // --- 7.2 select a post-click URL (prefer manifest → file → segment; ignore blob:)
-  .then(() => {
-    const recent = (audioHits || []).filter(h => h && h.ts >= (clickMark - 200));
-    const preferDirect = u => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
+.then(() => {
+  const recent = (audioHits || []).filter(h => h && h.ts >= (clickMark - 200));
+  const preferDirect = u => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
 
-    const m3u8 = recent.find(h => /\.m3u8(\?|$)/i.test(h.url));
-    const mpd  = recent.find(h => /\.mpd(\?|$)/i.test(h.url));
-    const file = recent.find(h => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
-    const seg  = recent.find(h => /\.(m4s|ts)(\?|$)/i.test(h.url));
+  const m3u8 = recent.find(h => /\.m3u8(\?|$)/i.test(h.url));
+  const mpd  = recent.find(h => /\.mpd(\?|$)/i.test(h.url));
+  const file = recent.find(h => /\.(mp3|aac|ogg|wav)(\?|$)/i.test(h.url));
+  const seg  = recent.find(h => /\.(m4s|ts)(\?|$)/i.test(h.url));
 
-    const cand =
-      preferDirect(currentAudioUrl) ||
-      m3u8 || mpd || file || seg || recent[recent.length - 1];
+  const cand =
+    preferDirect(currentAudioUrl) ||
+    m3u8 || mpd || file || seg || recent[recent.length - 1];
 
-    if (!cand) {
+  if (!cand) {
+    return cy.task('recordStep', {
+      name: 'audio-fingerprint',
+      status: 'fail',
+      note: 'No post-click media URL captured to fingerprint'
+    }).then(() => {
+      if (strict) expect(false, 'no media URL to fingerprint').to.be.true;
+    });
+  }
+
+  const urlToUse = cand.url;
+  cy.log(`Fingerprinting: ${urlToUse}`);
+
+  // (optional) log a little debug row
+  return cy.task('recordStep', {
+    name: 'audio-live-debug',
+    status: 'pass',
+    url: urlToUse,
+    seconds
+  })
+  // --- one-time live probe so the report shows the exact decode reason
+  .then(() => cy.task('probeLiveDecode', { url: urlToUse, seconds }, { timeout: 120000 }))
+  .then((probe) => {
+    if (!probe || probe.ok !== true) {
       return cy.task('recordStep', {
         name: 'audio-fingerprint',
         status: 'fail',
-        note: 'No post-click media URL captured to fingerprint'
+        note: `live decode failed: ${(probe && probe.error) || 'unknown'}`,
+        url: urlToUse
       }).then(() => {
-        if (strict) expect(false, 'no media URL to fingerprint').to.be.true;
+        expect(false, 'live fingerprint is null').to.be.true; // fail ONLY Step 7
       });
     }
 
-    const urlToUse = cand.url;
-    cy.log(`Fingerprinting: ${urlToUse}`);
-    cy.task('recordStep', {
-      name: 'audio-live-debug',
-      status: 'pass',
-      url: urlToUse,
-      seconds
-});
-    // --- one-time live probe so the report shows the exact decode reason
-    return cy.task('probeLiveDecode', { url: urlToUse, seconds }, { timeout: 120000 })
-      .then(probe => {
-        if (!probe || probe.ok !== true) {
+    // --- 7.3 decode+compare after a successful probe
+    return cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
+      .then(live => cy.task('referenceFingerprint').then(ref => ({ live, ref, urlToUse })))
+      .then(({ live, ref, urlToUse }) => {
+        if (!ref) {
           return cy.task('recordStep', {
             name: 'audio-fingerprint',
             status: 'fail',
-            note: `live decode failed: ${(probe && probe.error) || 'unknown'}`,
+            note: 'Reference fingerprint is null. Ensure cypress/fixtures/reference.mp3 exists; restart Cypress or bump REF_VERSION.',
             url: urlToUse
-          }).then(() => {
-            expect(false, 'live fingerprint is null').to.be.true; // fail ONLY Step 7
-          });
+          }).then(() => { if (strict) expect(false, 'reference fingerprint is null').to.be.true; });
         }
-
-        // --- 7.3 decode+compare
-        return cy.task('fingerprintMedia', { url: urlToUse, seconds }, { timeout: 120000 })
-          .then(live => cy.task('referenceFingerprint').then(ref => ({ live, ref, urlToUse })))
-          .then(({ live, ref, urlToUse }) => {
-            if (!ref) {
-              return cy.task('recordStep', {
-                name: 'audio-fingerprint',
-                status: 'fail',
-                note: 'Reference fingerprint is null. Ensure cypress/fixtures/reference.mp3 exists; restart Cypress or bump REF_VERSION.',
-                url: urlToUse
-              }).then(() => { if (strict) expect(false, 'reference fingerprint is null').to.be.true; });
-            }
-            if (!live || !live.length) {
-              return cy.task('recordStep', {
-                name: 'audio-fingerprint',
-                status: 'fail',
-                note: 'Could not decode first N seconds of live media (no fingerprint returned)',
-                url: urlToUse
-              }).then(() => { if (strict) expect(false, 'live fingerprint is null').to.be.true; });
-            }
-            return cy.task('compareFingerprints', { a: ref, b: live, threshold })
-              .then(result => ({ ...result, urlToUse }));
-          })
-          .then(result => {
-            if (!result) return;
-            const { score, pass, urlToUse } = result;
-            cy.log(`Audio similarity: ${score?.toFixed?.(3)} (threshold ${threshold})`);
-            return cy.task('recordStep', {
-              name: 'audio-fingerprint',
-              status: pass ? 'pass' : 'fail',
-              score,
-              url: urlToUse
-            }).then(() => {
-              if (!pass && strict) {
-                expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
-              }
-            });
-          });
+        if (!live || !live.length) {
+          return cy.task('recordStep', {
+            name: 'audio-fingerprint',
+            status: 'fail',
+            note: 'Could not decode first N seconds of live media (no fingerprint returned)',
+            url: urlToUse
+          }).then(() => { if (strict) expect(false, 'live fingerprint is null').to.be.true; });
+        }
+        return cy.task('compareFingerprints', { a: ref, b: live, threshold })
+          .then(result => ({ ...result, urlToUse }));
+      })
+      .then(result => {
+        if (!result) return;
+        const { score, pass, urlToUse } = result;
+        cy.log(`Audio similarity: ${score?.toFixed?.(3)} (threshold ${threshold})`);
+        return cy.task('recordStep', {
+          name: 'audio-fingerprint',
+          status: pass ? 'pass' : 'fail',
+          score,
+          url: urlToUse
+        }).then(() => {
+          if (!pass && strict) {
+            expect(pass, `Audio similarity ${score?.toFixed?.(3)} < ${threshold}`).to.be.true;
+          }
+        });
       });
   });
-});
+})
 
 // 08 – Verify bottom player controls (scoped & tolerant)
 it('08 – Verify bottom player controls', () => {
