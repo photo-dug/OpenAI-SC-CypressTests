@@ -41,10 +41,10 @@ module.exports = defineConfig({
     pageLoadTimeout: 120000,
     testIsolation: false,
     setupNodeEvents(on, config) {
-      reporterPlugin(on);
-      registerAudioTasks(on, config);
+      registerReporter(on, config);
+      registerAudioTasks(on, config);   // <-- must be present
       registerResultsTasks(on, config);
-      return config;
+    return config;
     },
   },
 });
