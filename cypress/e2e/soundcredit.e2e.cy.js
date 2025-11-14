@@ -393,7 +393,7 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
   const threshold = Number(Cypress.env('FINGERPRINT_THRESHOLD') ?? 0.90);
   const seconds   = Number(Cypress.env('FINGERPRINT_SECONDS') ?? 5);
 
-  // --- Guard: reference must exist & decode
+  // --- Guard: reference must exist & decode (return the chain)
   return cy.task('statReference').then(info => {
     if (!info || !info.exists) {
       return cy.task('recordStep', {
@@ -405,11 +405,17 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
       });
     }
     return cy.task('probeReferenceDecode').then((probe) => {
+      // always log the probe result
+      cy.task('recordStep', {
+        name: 'audio-ref-probe',
+        status: probe?.ok ? 'pass' : 'fail',
+        note: probe?.error || `samples=${probe?.samples}`
+      });
       if (!probe || probe.ok !== true) {
         return cy.task('recordStep', {
           name: 'audio-fingerprint',
           status: 'fail',
-          note: `reference decode failed: ${(probe && probe.error) || 'unknown'}`
+          note: `reference decode failed: ${probe?.error || 'unknown'}`
         }).then(() => {
           expect(false, 'reference fingerprint (restart cypress if null)').to.be.true; // fail ONLY Step 7
         });
@@ -441,7 +447,7 @@ it('07 – Verify audio is playing and matches reference (first 5s)', () => {
       });
   })
 
-  // --- 7.2 select a post-click URL (prefer manifest → file → segment; ignore blob:)
+  // --- 7.2 choose a post-click URL (prefer manifest → file → segment; ignore blob:)
   .then(() => {
     const recent = (audioHits || []).filter(h => h && h.ts >= (clickMark - 200));
     const preferDirect = u => (typeof u === 'string' && u && !u.startsWith('blob:')) ? { url: u } : null;
