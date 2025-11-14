@@ -1,10 +1,10 @@
 // tasks/audio-fingerprint.cjs
-const ffmpegPath = require('ffmpeg-static');
-const { spawn } = require('node:child_process');
-const https = require('node:https');                 // ✅ add this line
-const fs = require('node:fs');
-const path = require('node:path');
-const Meyda = require('meyda');
+import ffmpegPath from 'ffmpeg-static'
+import { spawn } from 'child_process'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import * as https from 'node:https'   // <-- add this
+import Meyda from 'meyda'
 
 let cachedRef = null;
 let cachedKey = null;
