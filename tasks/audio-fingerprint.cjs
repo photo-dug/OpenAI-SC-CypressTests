@@ -8,38 +8,104 @@ import Meyda from 'meyda'
 
 let cachedRef = null;
 let cachedKey = null;
+let cachedRef: number[] | null = null;
 
-function pcmS16ToFloat32(buf) { /* unchanged */ }
-function average(rows) { /* unchanged */ }
+function pcmToF32(buf: Buffer) {
+  const f32 = new Float32Array(buf.length / 2);
+  for (let i = 0; i < f32.length; i++) {
+    const s = buf.readInt16LE(i * 2);
+    f32[i] = Math.max(-1, Math.min(1, s / 32768));
+  }
+  return f32;
+}
+function cosine(a: number[], b: number[]) {
+  const dot = a.reduce((acc, v, i) => acc + v * (b[i] ?? 0), 0);
+  const na = Math.sqrt(a.reduce((acc, v) => acc + v * v, 0));
+  const nb = Math.sqrt(b.reduce((acc, v) => acc + v * v, 0));
+  return na && nb ? dot / (na * nb) : 0;
+}
+function avg(rows: number[][]) {
+  if (!rows.length) return [] as number[];
+  const acc = new Array(rows[0].length).fill(0);
+  for (const r of rows) r.forEach((v, i) => (acc[i] += v));
+  return acc.map((v) => v / rows.length);
+}
 function cosine(a, b) { /* unchanged */ }
 
 /** Decode a local path or http(s)/HLS/DASH URL to mono s16 PCM (Float32Array). */   // ✅ remove the “/at top: …” text
-function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
-  return new Promise((resolve, reject) => {
-    const src    = String(input);
-    const isHttp = /^https?:\/\//i.test(src);
+function ffmpegDecode(input: NodeJS.ReadableStream | string, isStream: boolean) {
+  const args = isStream
+    ? ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-t', '5', '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1']
+    : ['-hide_banner', '-loglevel', 'error', '-ss', '0', '-t', '5', '-i', input, '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1'];
 
-    const doFfmpeg = (args, stdinStream /* optional */) => new Promise((res, rej) => {
-      const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-      const chunks = [];
-      let stderr = '';
+  const ff = spawn(ffmpegPath as string, args);
+  const chunks: Buffer[] = [];
+  let stderr = '';
 
-      if (stdinStream) stdinStream.pipe(ff.stdin);
-      else ff.stdin.end();
+  ff.stdout.on('data', (d) => chunks.push(d));
+  ff.stderr.on('data', (d) => (stderr += d.toString()));
 
-      ff.stdout.on('data', d => chunks.push(d));
-      ff.stderr.on('data', d => { stderr += d.toString(); });
-      ff.on('error', rej);
-      ff.on('close', (code, signal) => {
-        if (code === 0 && chunks.length) {
-          try { return res(pcmS16ToFloat32(Buffer.concat(chunks))); }
-          catch (e) { return rej(e); }
-        }
-        const why = `ffmpeg exited ${code == null ? 'null' : code}${signal ? ' (signal ' + signal + ')' : ''}. ${stderr || ''}`;
-        rej(new Error(why));
-      });
-    });
+  ff.on('error', (e) => rej(e));
 
+  ff.on('close', (code) => {
+    if (code === 0) {
+      try {
+        res({ pcm: pcmToF32(Buffer.concat(chunks)), stderr });
+      } catch (e) {
+        rej(e);
+      }
+    } else {
+      rej(new Error(`ffmpeg exited with code ${code}: ${stderr.trim()}`));
+    }
+  });
+
+  return { proc: ff };
+}
+
+export function registerAudioTasks(on: Cypress.PluginEvents, config: Cypress.PluginConfigOptions) {
+  on('task', {
+    async referenceFingerprint() {
+      if (cached?) return cached;
+      const p = path.join(config.projectRoot, 'cypress', 'fixtures', 'reference.mp3');
+      if (!fs.existsSync(p)) {
+        throw new Error(`Missing reference mp3 at ${p}`);
+      }
+      const { pcm } = await ffmpegFileToPcm(p); // use helper from above or inline decode call
+      const vector = computeFingerprint(pcm);   // your avg(mfcc+chroma) function
+      cached = vector;
+      return vector;
+    },
+
+    async probeLiveDebug(url: string) {
+      // Optionally expose a quick probe that returns both error and some meta about the attempt
+      try {
+        const { pcm, stderr } = await ffmpegHttpToPcm(url);  // implement using https.get + ffmpeg pipe
+        return { ok: true, bytes: pcm.byteLength, stderr: '' };
+      } catch (e: any) {
+        return { ok: false, error: String(e?.message || e) };
+      }
+    },
+
+    async fingerprintAudioFromUrl(url: string) {
+      try {
+        const { pcm, stderr } =
+          url.includes('m3u8')
+            ? await ffmpegHlsToPcm(url) // if you implemented segment merge
+            : await ffmpegUrlToPcm(url);
+
+        const vector = computeFingerprint(pcm);
+        return { ok: true, vector, meta: { bytes: pcm.byteLength } };
+      } catch (e: any) {
+        return { ok: false, error: String(e?.message || e) };
+      }
+    },
+
+    compareFingerprints({ a, b, threshold = 0.9 }) {
+      const score = cosine(a ?? [], b ?? []);
+      return { score, pass: score >= threshold };
+    }
+  });
+}
     // Base args – minimal for local files
     const args = ['-hide_banner', '-loglevel', 'error', '-nostdin'];
 
