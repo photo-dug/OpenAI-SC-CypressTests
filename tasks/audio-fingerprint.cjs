@@ -53,7 +53,7 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const src = String(input);
     const isHttp = /^https?:\/\//i.test(src);
-
+    
     const doFfmpeg = (args, stdinStream /* stream or null */) =>
       new Promise((res, rej) => {
         const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -129,12 +129,9 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
         if (isHttp) {
           // http(s) fallback: Node https → ffmpeg stdin
           try {
-            const req = https.get(
-              src,
-              {
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
-                  Accept: 'audio/*,*/*;q=0.8',
+            const req = https.get(src, { headers: {
+  'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
+  'Accept': 'audio/*,*/*;q=0.8',
                 },
               },
               (res) => {
