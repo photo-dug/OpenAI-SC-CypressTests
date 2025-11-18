@@ -27,7 +27,7 @@ jobs:
       - name: List fixtures
         run: ls -l cypress/fixtures || true
 
-      - name: "Preflight: load config + tasks"
+      - name: Preflight: load config + tasks
         run: |
           node -e "require('./cypress.config.cjs'); console.log('config OK')"
           node -e "require('./tasks/audio-fingerprint.cjs'); console.log('audio tasks OK')"
