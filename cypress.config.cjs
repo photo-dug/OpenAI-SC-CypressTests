@@ -5,7 +5,25 @@ const { registerAudioTasks } = require('./tasks/audio-fingerprint.cjs');
 const { registerResultsTasks } = require('./tasks/results-writer.cjs');
 
 module.exports = defineConfig({
-  // ... your reporterOptions + env as you already have ...
+  reporter: 'cypress-mochawesome-reporter',
+  reporterOptions: {
+    reportDir: 'cypress/reports',
+    embeddedScreenshots: true,
+    inlineAssets: true,
+    saveJson: true,
+  },
+  env: {
+    SC_USERNAME: process.env.CYPRESS_SC_USERNAME ?? process.env.SC_USERNAME ?? '',
+    SC_PASSWORD: process.env.CYPRESS_SC_PASSWORD ?? process.env.SC_PASSWORD ?? '',
+    FINGERPRINT_STRICT:
+      (process.env.CYPRESS_FINGERPRINT_STRICT ?? process.env.FINGERPRINT_STRICT) === 'true',
+    FINGERPRINT_SECONDS:
+      process.env.CYPRESS_FINGERPRINT_SECONDS ?? process.env.FINGERPRINT_SECONDS ?? '5',
+    FINGERPRINT_THRESHOLD:
+      process.env.CYPRESS_FINGERPRINT_THRESHOLD ?? process.env.FINGERPRINT_THRESHOLD ?? '0.90',
+    REF_VERSION: process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1',
+    SKIP_AUDIO: process.env.CYPRESS_SKIP_AUDIO ?? process.env.SKIP_AUDIO ?? 'false',
+  },
   e2e: {
     baseUrl: 'https://portal.soundcredit.com',
     video: true,
@@ -14,15 +32,12 @@ module.exports = defineConfig({
     pageLoadTimeout: 120000,
     testIsolation: false,
     setupNodeEvents(on, config) {
-      try {
-        reporterPlugin(on);                 // ✅ just the reporter
-        registerAudioTasks(on, config);     // ✅ your audio tasks
-        registerResultsTasks(on, config);   // ✅ your results-writer tasks
-        return config;
-      } catch (e) {
-        console.error('[setupNodeEvents] crashed:', e && e.stack ? e.stack : e);
-        throw e; // let Cypress show the real stack
-      }
+      // Do not put network/ffmpeg/https code here.
+      // Only register reporter + tasks:
+      reporterPlugin(on);
+      registerAudioTasks(on, config);
+      registerResultsTasks(on, config);
+      return config;
     },
   },
 });
