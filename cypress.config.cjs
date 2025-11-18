@@ -5,25 +5,7 @@ const { registerAudioTasks } = require('./tasks/audio-fingerprint.cjs');
 const { registerResultsTasks } = require('./tasks/results-writer.cjs');
 
 module.exports = defineConfig({
-  reporter: 'cypress-mochawesome-reporter',
-  reporterOptions: {
-    reportDir: 'cypress/reports',
-    embeddedScreenshots: true,
-    inlineAssets: true,
-    saveJson: true
-  },
-  env: {
-    SC_USERNAME: process.env.CYPRESS_SC_USERNAME ?? process.env.SC_USERNAME ?? '',
-    SC_PASSWORD: process.env.CYPRESS_SC_PASSWORD ?? process.env.SC_PASSWORD ?? '',
-    FINGERPRINT_STRICT:
-      (process.env.CYPRESS_FINGERPRINT_STRICT ?? process.env.FINGERPRINT_STRICT) === 'true',
-    FINGERPRINT_SECONDS:
-      process.env.CYPRESS_FINGERPRINT_SECONDS ?? process.env.FINGERPRINT_SECONDS ?? '5',
-    FINGERPRINT_THRESHOLD:
-      process.env.CYPRESS_FINGERPRINT_THRESHOLD ?? process.env.FINGERPRINT_THRESHOLD ?? '0.90',
-    REF_VERSION: process.env.CYPRESS_REF_VERSION ?? process.env.REF_VERSION ?? '1',
-    SKIP_AUDIO: process.env.CYPRESS_SKIP_AUDIO ?? process.env.SKIP_AUDIO ?? 'false'
-  },
+  // ... your reporterOptions + env as you already have ...
   e2e: {
     baseUrl: 'https://portal.soundcredit.com',
     video: true,
@@ -33,52 +15,14 @@ module.exports = defineConfig({
     testIsolation: false,
     setupNodeEvents(on, config) {
       try {
-        // reporter must be first
-        reporterPlugin(on);
-
-        // our tasks (comment these two lines temporarily to bisect)
-        registerAudioTasks(on, config);
-        registerResultsTasks(on, config);
+        reporterPlugin(on);                 // ✅ just the reporter
+        registerAudioTasks(on, config);     // ✅ your audio tasks
+        registerResultsTasks(on, config);   // ✅ your results-writer tasks
+        return config;
       } catch (e) {
-        // print clearly in the Cypress App and CI logs
-        console.error('[setupNodeEvents] crash:', e && e.stack ? e.stack : e);
-        throw e;
+        console.error('[setupNodeEvents] crashed:', e && e.stack ? e.stack : e);
+        throw e; // let Cypress show the real stack
       }
-
-      // http(s) fallback: Node https → ffmpeg stdin
-try {
-  const req = https.get(
-    src,
-    {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
-        Accept: 'audio/*,*/*;q=0.8',
-      },
     },
-    (res) => {
-      if (res.statusCode && res.statusCode >= 400) {
-        return reject(new Error(`HTTP ${res.statusCode} for ${src}`));
-      }
-      const argsPipe = [
-        '-hide_banner','-loglevel','error','-nostdin',
-        '-ss','0','-t',String(seconds),
-        '-i','pipe:0',
-        '-vn','-ac','1','-ar',String(sampleRate),
-        '-f','s16le','pipe:1',
-      ];
-      doFfmpeg(argsPipe, res).then(resolve).catch(reject);
-    }
-  );
-
-  req.setTimeout(15000, () => {   // 15s network timeout
-    req.destroy(new Error('HTTP request timeout'));
-  });
-
-  req.on('error', reject);
-} catch (e2) {
-  reject(e2);
-}
-      return config;
-    }
-  }
+  },
 });
