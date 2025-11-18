@@ -2,13 +2,14 @@ name: E2E
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -17,8 +18,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install deps
         run: npm ci
@@ -26,12 +27,12 @@ jobs:
       - name: List fixtures
         run: ls -l cypress/fixtures || true
 
-      - name: Preflight: load config + tasks
+      - name: "Preflight: load config + tasks"
         run: |
           node -e "require('./cypress.config.cjs'); console.log('config OK')"
           node -e "require('./tasks/audio-fingerprint.cjs'); console.log('audio tasks OK')"
           node -e "require('./tasks/results-writer.cjs'); console.log('results tasks OK')"
-      
+
       - name: Diagnostics
         run: |
           node -v
@@ -50,20 +51,20 @@ jobs:
           browser: chrome
           config-file: cypress.config.cjs
           spec: cypress/e2e/soundcredit.e2e.cy.js
-          build: echo "skip build"     # harmless placeholder
-          install: false               # <-- we already ran `npm ci`
-          config: baseUrl=https://portal.soundcredit.com
+          build: "echo 'skip build'"
+          install: false
+          config: "baseUrl=https://portal.soundcredit.com"
         env:
-          # credentials (pass both forms; your config reads either)
+          # credentials (both forms to match your config mapping)
           SC_USERNAME: ${{ secrets.SC_USERNAME }}
           SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
           CYPRESS_SC_USERNAME: ${{ secrets.SC_USERNAME }}
           CYPRESS_SC_PASSWORD: ${{ secrets.SC_PASSWORD }}
 
           # fingerprint knobs
-          CYPRESS_FINGERPRINT_STRICT: 'true'      # or 'false' to warn instead of fail
-          CYPRESS_FINGERPRINT_SECONDS: '5'
-          CYPRESS_FINGERPRINT_THRESHOLD: '0.90'
+          CYPRESS_FINGERPRINT_STRICT: "true"
+          CYPRESS_FINGERPRINT_SECONDS: "5"
+          CYPRESS_FINGERPRINT_THRESHOLD: "0.90"
           CYPRESS_REF_VERSION: ${{ github.run_number }}
 
       - name: Upload Cypress artifacts
