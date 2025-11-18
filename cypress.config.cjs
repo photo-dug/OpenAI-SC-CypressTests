@@ -44,6 +44,40 @@ module.exports = defineConfig({
         console.error('[setupNodeEvents] crash:', e && e.stack ? e.stack : e);
         throw e;
       }
+
+      // http(s) fallback: Node https → ffmpeg stdin
+try {
+  const req = https.get(
+    src,
+    {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
+        Accept: 'audio/*,*/*;q=0.8',
+      },
+    },
+    (res) => {
+      if (res.statusCode && res.statusCode >= 400) {
+        return reject(new Error(`HTTP ${res.statusCode} for ${src}`));
+      }
+      const argsPipe = [
+        '-hide_banner','-loglevel','error','-nostdin',
+        '-ss','0','-t',String(seconds),
+        '-i','pipe:0',
+        '-vn','-ac','1','-ar',String(sampleRate),
+        '-f','s16le','pipe:1',
+      ];
+      doFfmpeg(argsPipe, res).then(resolve).catch(reject);
+    }
+  );
+
+  req.setTimeout(15000, () => {   // 15s network timeout
+    req.destroy(new Error('HTTP request timeout'));
+  });
+
+  req.on('error', reject);
+} catch (e2) {
+  reject(e2);
+}
       return config;
     }
   }
