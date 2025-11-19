@@ -53,73 +53,69 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
   return new Promise((resolve, reject) => {
     const src = String(input);
     const isHttp = /^https?:\/\//i.test(src);
-    
-    const doFfmpeg = (args, stdinStream /* stream or null */) =>
-      new Promise((res, rej) => {
-        const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-        const chunks = [];
-        let stderr = '';
 
-        if (stdinStream) stdinStream.pipe(ff.stdin);
-        else ff.stdin.end();
+    const doFfmpeg = (args, stdinStream /* stream or null */) => new Promise((res, rej) => {
+      let settled = false;
+      const settle = (fn, val) => { if (!settled) { settled = true; fn(val); } };
 
-        ff.stdout.on('data', (d) => chunks.push(d));
-        ff.stderr.on('data', (d) => (stderr += d.toString()));
-        ff.on('error', rej);
-        ff.on('close', (code, signal) => {
-          if (code === 0 && chunks.length) {
-            try {
-              return res(pcmS16ToFloat32(Buffer.concat(chunks)));
-            } catch (e) {
-              return rej(e);
-            }
-          }
-          const why = `ffmpeg exited ${code == null ? 'null' : code}${
-            signal ? ' (signal ' + signal + ')' : ''
-          }. ${stderr || ''}`;
-          rej(new Error(why));
-        });
+      const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+      const chunks = [];
+      let stderr = '';
+
+      // make stdin EPIPE-safe
+      ff.stdin.on('error', (err) => {
+        // Swallow EPIPE (ffmpeg already closed stdin). Other errors still reject.
+        if (err && err.code !== 'EPIPE') settle(rej, err);
       });
 
+      if (stdinStream) {
+        stdinStream.on('error', (err) => settle(rej, err));
+        stdinStream.pipe(ff.stdin);
+      } else {
+        ff.stdin.end();
+      }
+
+      ff.stdout.on('data', (d) => chunks.push(d));
+      ff.stderr.on('data', (d) => (stderr += d.toString()));
+      ff.on('error', (err) => settle(rej, err));
+      ff.on('close', (code, signal) => {
+        // stop producer stream if still flowing
+        try {
+          if (stdinStream && typeof stdinStream.unpipe === 'function') stdinStream.unpipe(ff.stdin);
+          if (!ff.stdin.destroyed) ff.stdin.end();
+          if (stdinStream && typeof stdinStream.destroy === 'function') stdinStream.destroy();
+        } catch {}
+
+        if (code === 0 && chunks.length) {
+          try {
+            const f32 = pcmS16ToFloat32(Buffer.concat(chunks));
+            return settle(res, f32);
+          } catch (e) {
+            return settle(rej, e);
+          }
+        }
+        const why = `ffmpeg exited ${code == null ? 'null' : code}${signal ? ' (signal ' + signal + ')' : ''}. ${stderr || ''}`;
+        return settle(rej, new Error(why));
+      });
+    });
+
+    // base args (add network flags only for http)
     const args = ['-hide_banner', '-loglevel', 'error', '-nostdin'];
     if (isHttp) {
       args.push(
-        '-rw_timeout',
-        '15000000', // 15s (microseconds)
-        '-reconnect',
-        '1',
-        '-reconnect_streamed',
-        '1',
-        '-reconnect_at_eof',
-        '1',
-        '-reconnect_delay_max',
-        '2',
-        '-protocol_whitelist',
-        'file,http,https,tcp,tls,crypto,httpproxy',
-        '-allowed_extensions',
-        'ALL',
-        '-http_user_agent',
-        'Mozilla/5.0 (Cypress ffmpeg)',
-        '-headers',
-        'Accept: audio/*\r\n'
+        '-rw_timeout','15000000',
+        '-reconnect','1','-reconnect_streamed','1','-reconnect_at_eof','1','-reconnect_delay_max','2',
+        '-protocol_whitelist','file,http,https,tcp,tls,crypto,httpproxy',
+        '-allowed_extensions','ALL',
+        '-http_user_agent','Mozilla/5.0 (Cypress ffmpeg)',
+        '-headers','Accept: audio/*\r\n'
       );
     }
-
     args.push(
-      '-ss',
-      '0',
-      '-t',
-      String(seconds),
-      '-i',
-      src,
-      '-vn',
-      '-ac',
-      '1',
-      '-ar',
-      String(sampleRate),
-      '-f',
-      's16le',
-      'pipe:1'
+      '-ss','0','-t',String(seconds),
+      '-i', src,
+      '-vn','-ac','1','-ar',String(sampleRate),
+      '-f','s16le','pipe:1'
     );
 
     // First try: direct -i URL or local path
@@ -127,11 +123,14 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
       .then(resolve)
       .catch((e1) => {
         if (isHttp) {
-          // http(s) fallback: Node https → ffmpeg stdin
+          // http(s) fallback: Node https → ffmpeg stdin (EPIPE-safe)
           try {
-            const req = https.get(src, { headers: {
-  'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
-  'Accept': 'audio/*,*/*;q=0.8',
+            const req = https.get(
+              src,
+              {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Cypress ffmpeg)',
+                  'Accept': 'audio/*,*/*;q=0.8',
                 },
               },
               (res) => {
@@ -139,56 +138,32 @@ function decodeToPCMFromUrl(input, seconds = 5, sampleRate = 16000) {
                   return reject(new Error(`HTTP ${res.statusCode} for ${src}`));
                 }
                 const argsPipe = [
-                  '-hide_banner',
-                  '-loglevel',
-                  'error',
-                  '-nostdin',
-                  '-ss',
-                  '0',
-                  '-t',
-                  String(seconds),
-                  '-i',
-                  'pipe:0',
-                  '-vn',
-                  '-ac',
-                  '1',
-                  '-ar',
-                  String(sampleRate),
-                  '-f',
-                  's16le',
-                  'pipe:1',
+                  '-hide_banner','-loglevel','error','-nostdin',
+                  '-ss','0','-t',String(seconds),
+                  '-i','pipe:0',
+                  '-vn','-ac','1','-ar',String(sampleRate),
+                  '-f','s16le','pipe:1',
                 ];
                 doFfmpeg(argsPipe, res).then(resolve).catch(reject);
               }
             );
+
+            req.setTimeout(15000, () => { req.destroy(new Error('HTTP request timeout')); });
             req.on('error', reject);
           } catch (e2) {
             reject(e2);
           }
         } else {
-          // local file fallback: fs stream → ffmpeg stdin
+          // local file fallback: fs stream → ffmpeg stdin (EPIPE-safe)
           try {
             if (!fs.existsSync(src)) return reject(new Error(`Local file not found: ${src}`));
             const s = fs.createReadStream(src);
             const argsPipe = [
-              '-hide_banner',
-              '-loglevel',
-              'error',
-              '-nostdin',
-              '-ss',
-              '0',
-              '-t',
-              String(seconds),
-              '-i',
-              'pipe:0',
-              '-vn',
-              '-ac',
-              '1',
-              '-ar',
-              String(sampleRate),
-              '-f',
-              's16le',
-              'pipe:1',
+              '-hide_banner','-loglevel','error','-nostdin',
+              '-ss','0','-t',String(seconds),
+              '-i','pipe:0',
+              '-vn','-ac','1','-ar',String(sampleRate),
+              '-f','s16le','pipe:1',
             ];
             doFfmpeg(argsPipe, s).then(resolve).catch(reject);
           } catch (e2) {
